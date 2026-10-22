@@ -31,6 +31,25 @@ async function logEvent(env: Env, e: { bet: string; variant?: string | null; nam
     .run();
 }
 
+// ---------- Health check: shows only WHETHER settings exist, never their values ----------
+app.get('/api/health', (c) => {
+  const set = (v?: string) => (v && v.trim() ? 'set' : 'missing');
+  return c.json({
+    ok: true,
+    settings: {
+      ADMIN_KEY: set(c.env.ADMIN_KEY),
+      AI_API_KEY: set(c.env.AI_API_KEY),
+      PAYMENT_PROVIDER: c.env.PAYMENT_PROVIDER,
+      MIDTRANS_SERVER_KEY: set(c.env.MIDTRANS_SERVER_KEY),
+      MIDTRANS_PRODUCTION: c.env.MIDTRANS_PRODUCTION ?? 'false',
+      MAYAR_API_KEY: set(c.env.MAYAR_API_KEY),
+      META_PIXEL_IDS: set(c.env.META_PIXEL_IDS),
+      META_CAPI_TOKEN: set(c.env.META_CAPI_TOKEN),
+      AI_MODEL: c.env.AI_MODEL,
+    },
+  });
+});
+
 // ---------- Public config ----------
 app.get('/api/bets/:slug', (c) => {
   const bet = getBet(c.req.param('slug'));

@@ -71,9 +71,42 @@ describe('peta rezeki scoring', () => {
 });
 
 describe('AI report parsing', () => {
-  it('extracts JSON wrapped in prose', () => {
+  it('parses the plain-text layout, including quotes and bold', () => {
+    const txt = `JUDUL: Dimas: Kreator Konsisten
+SUBJUDUL: Rezekimu datang dari karya yang "rutin" dan berkualitas.
+PEMBUKA: Kamu bilang temanmu sering minta "bikinin logo".
+
+## Profilmu
+Kamu tipe **kreator** yang telaten.
+
+Paragraf kedua dengan kutipan "seperti ini" dan apostrof Jum'at.
+
+## Kekuatan utamamu
+- Rasa estetika kuat
+- Telaten dengan detail
+
+## 3 jalur rezeki
+1. Sampingan: jasa desain.
+2. Karier: desainer grafis.
+
+## Penutup
+Mulai minggu ini.`;
+    const r = parseReport(txt);
+    expect(r.title).toBe('Dimas: Kreator Konsisten');
+    expect(r.subtitle).toContain('"rutin"');
+    expect(r.intro).toContain('bikinin logo');
+    expect(r.sections).toHaveLength(3);
+    expect(r.sections[0].paragraphs).toHaveLength(2);
+    expect(r.sections[0].paragraphs[0]).toBe('Kamu tipe kreator yang telaten.');
+    expect(r.sections[1].bullets).toEqual(['Rasa estetika kuat', 'Telaten dengan detail']);
+    expect(r.closing).toBe('Mulai minggu ini.');
+  });
+  it('rejects text with too few sections', () => {
+    expect(() => parseReport('JUDUL: x\n\n## Satu\nisi')).toThrow();
+  });
+  it('still accepts legacy JSON', () => {
     const json = JSON.stringify({ title: 't', subtitle: 's', intro: 'i', closing: 'c', sections: [1, 2, 3].map((n) => ({ heading: `h${n}`, paragraphs: ['p'] })) });
-    expect(parseReport('Berikut laporannya:\n' + json + '\nSelesai').sections).toHaveLength(3);
+    expect(parseReport(json).sections).toHaveLength(3);
   });
   it('rejects thin reports', () => {
     expect(() => parseReport(JSON.stringify({ title: 't', subtitle: 's', intro: 'i', closing: 'c', sections: [] }))).toThrow();

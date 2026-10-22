@@ -402,8 +402,7 @@ Aturan:
 - Jangan menjanjikan penghasilan, kekayaan, atau nasib. Jangan menyebut angka penghasilan pasti.
 - Spesifik pada situasi orang ini (status, modal, waktu luang). Hindari kalimat umum yang cocok untuk semua orang.
 - Jika ada data weton, tulis bagian weton sebagai pengetahuan budaya Jawa ("menurut tradisi primbon..."), bukan ramalan, dan kaitkan dengan refleksi diri.
-- Balas HANYA dengan JSON valid sesuai skema:
-{"title": string, "subtitle": string, "intro": string, "sections": [{"heading": string, "paragraphs": string[], "bullets"?: string[]}], "closing": string}`;
+- Ikuti FORMAT JAWABAN di bawah dengan tepat.`;
   const user = `Profil: ${p.name}: ${p.tagline}
 Skor minat (0-1): ${JSON.stringify(r.scores)}
 Kekuatan dasar: ${p.strengths.join('; ')}

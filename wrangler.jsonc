@@ -17,7 +17,7 @@
     "PAYMENT_PROVIDER": "mayar",
     "MAYAR_API_BASE": "https://api.mayar.id/hl/v2",
     "AI_BASE_URL": "https://openrouter.ai/api/v1",
-    "AI_MODEL": "anthropic/claude-sonnet-4.5"
+    "AI_MODEL": "anthropic/claude-sonnet-5.5"
   }
   // Secrets (set with `wrangler secret put NAME`, or in .dev.vars locally):
   // MAYAR_API_KEY, AI_API_KEY, ADMIN_KEY, META_CAPI_TOKEN

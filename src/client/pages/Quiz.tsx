@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Answers } from '../../shared/types';
+import { askedFor } from '../../shared/types';
 import { api, pixel, track, useBet, utm, variantFor, visitorId } from '../api';
 import { Brand } from './Lander';
 
@@ -18,7 +19,7 @@ export function Quiz() {
   const started = useRef(false);
 
   const questions = useMemo(
-    () => (bet?.questions ?? []).filter((q) => q.kind !== 'date' || !q.onlyForVariants || q.onlyForVariants.includes(variant)),
+    () => (bet?.questions ?? []).filter((q) => askedFor(q, variant)),
     [bet, variant],
   );
 

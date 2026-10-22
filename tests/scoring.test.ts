@@ -87,3 +87,17 @@ describe('mobile normalization', () => {
     expect(normalizeMobile('81234567890')).toBe('6281234567890');
   });
 });
+
+describe('weton after maghrib', () => {
+  it('moves to the next day when born after sunset', () => {
+    expect(weton('1945-08-17', true)).toMatchObject({ label: 'Sabtu Pahing' });
+  });
+  it('peta rezeki uses the maghrib answer and notes the alternative when unknown', () => {
+    const ans = { ...base, ...allOption('a'), birthdate: '1945-08-17' };
+    expect(petaRezeki.score({ ...ans, maghrib: 'no' }, 'weton').facts.weton).toBe('Jumat Legi');
+    expect(petaRezeki.score({ ...ans, maghrib: 'yes' }, 'weton').facts.weton).toBe('Sabtu Pahing');
+    const unk = petaRezeki.score({ ...ans, maghrib: 'unknown' }, 'weton');
+    expect(unk.facts.weton).toBe('Jumat Legi');
+    expect(String(unk.facts.wetonIfAfterMaghrib)).toContain('Sabtu Pahing');
+  });
+});

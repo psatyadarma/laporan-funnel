@@ -163,6 +163,16 @@ const questions: QuizQuestion[] = [
     optional: true, onlyForVariants: ['weton'],
   },
   {
+    id: 'maghrib', kind: 'choice', prompt: 'Kamu lahir setelah maghrib?',
+    help: 'Dalam tradisi Jawa, hari berganti saat matahari terbenam, jadi weton orang yang lahir setelah maghrib ikut hari berikutnya.',
+    onlyForVariants: ['weton'],
+    options: [
+      { id: 'no', label: 'Tidak, sebelum maghrib' },
+      { id: 'yes', label: 'Ya, setelah maghrib' },
+      { id: 'unknown', label: 'Tidak tahu / lewati' },
+    ],
+  },
+  {
     id: 'name', kind: 'text', prompt: 'Nama panggilanmu?', placeholder: 'mis. Dina',
     help: 'Supaya laporannya terasa untukmu.', optional: true,
   },
@@ -293,8 +303,12 @@ function score(answers: Answers, variant?: string): ScoreResult {
   const style = (totals.risk ?? 0) >= 4 ? 'bold' : 'safe';
   const facts: Record<string, string | number> = {};
   if (variant === 'weton' && answers.birthdate) {
-    const w = weton(answers.birthdate);
+    const w = weton(answers.birthdate, answers.maghrib === 'yes');
     if (w) { facts.weton = w.label; facts.neptu = w.neptu; }
+    if (w && answers.maghrib === 'unknown') {
+      const alt = weton(answers.birthdate, true);
+      if (alt) facts.wetonIfAfterMaghrib = `${alt.label} (neptu ${alt.neptu})`;
+    }
   }
   return { profileId: `${top}-${style}`, scores: norm, facts };
 }
@@ -354,7 +368,10 @@ function templateReport(r: ScoreResult, a: Answers): ReportContent {
   if (r.facts.weton) {
     sections.push({
       heading: `Wetonmu dalam tradisi Jawa: ${r.facts.weton}`,
-      paragraphs: [`Menurut perhitungan primbon, weton ${r.facts.weton} memiliki neptu ${r.facts.neptu}. Dalam tradisi Jawa, weton dipakai sebagai bahan renungan, bukan penentu nasib. Gunakan bagian ini sebagai cermin budaya, sementara langkah nyata tetap ada di rencana 90 hari di atas.`],
+      paragraphs: [
+        `Menurut perhitungan primbon, weton ${r.facts.weton} memiliki neptu ${r.facts.neptu}. Dalam tradisi Jawa, weton dipakai sebagai bahan renungan, bukan penentu nasib. Gunakan bagian ini sebagai cermin budaya, sementara langkah nyata tetap ada di rencana 90 hari di atas.`,
+        ...(r.facts.wetonIfAfterMaghrib ? [`Catatan: jika kamu lahir setelah maghrib, wetonmu menurut tradisi menjadi ${r.facts.wetonIfAfterMaghrib}.`] : []),
+      ],
     });
   }
   return {
@@ -395,7 +412,7 @@ Jalur dasar: karier ${p.paths.job.join(', ')} | sampingan ${p.paths.side.join(',
 Jalur utama yang disarankan untuk situasinya: ${PATH_LABEL[lead]}
 Partner ideal: ${p.partner}
 Kebiasaan uang: ${p.habit}
-${r.facts.weton ? `Weton: ${r.facts.weton}, neptu ${r.facts.neptu}` : 'Weton: tidak ada'}
+${r.facts.weton ? `Weton: ${r.facts.weton}, neptu ${r.facts.neptu}${r.facts.wetonIfAfterMaghrib ? ` (jam lahir tidak diketahui; jika setelah maghrib: ${r.facts.wetonIfAfterMaghrib}. Sebutkan kemungkinan ini secara singkat.)` : ''}` : 'Weton: tidak ada'}
 Nama panggilan: ${a.name?.trim() || '(tidak diisi)'}
 Jawaban kuis:
 ${answered}
@@ -421,7 +438,14 @@ export const petaRezeki: BetConfig = {
   hooks: [
     { id: '1', eyebrow: 'Tes 5 menit', headline: 'Kerja keras tapi rezeki gitu-gitu aja?', sub: 'Bisa jadi kamu sedang mengejar jalur yang bukan untuk karaktermu. Temukan jalur rezeki yang paling cocok denganmu.', cta: 'Mulai tes gratis' },
     { id: '2', eyebrow: 'Tes 5 menit', headline: 'Kamu tipe yang cocok jualan, atau jadi spesialis?', sub: 'Kenali karakter rezekimu dan dapatkan langkah 90 hari yang sesuai modal dan waktumu.', cta: 'Cek tipeku' },
-    { id: 'weton', eyebrow: 'Tes karakter + weton', headline: 'Wetonmu bilang apa soal jalur rezekimu?', sub: 'Gabungan tes karakter modern dan pengetahuan weton dari tradisi Jawa, dalam satu laporan personal.', cta: 'Mulai tes gratis' },
+    {
+      id: 'weton', eyebrow: 'Tes karakter rezeki + weton',
+      headline: 'Wetonmu bilang apa soal jalur rezekimu?',
+      sub: 'Tes karakter rezeki berbasis model konseling karier, dilengkapi bagian weton dari tradisi Jawa. Hasilnya: jalur rezeki yang cocok dan langkah 90 hari yang nyata.',
+      cta: 'Mulai tes gratis',
+      bullets: ['Tes karakter ±5 menit + tanggal lahir', 'Bonus: bagian weton & neptu menurut primbon Jawa', 'Fokus pada langkah nyata sesuai modal & waktumu'],
+      trust: 'Bukan ramalan. Weton disajikan sebagai pengetahuan budaya Jawa, bukan penentu nasib.',
+    },
   ],
   landerBullets: ['18 pertanyaan singkat, ±5 menit', 'Hasil awal langsung gratis', 'Laporan lengkap sesuai modal & waktumu'],
   trustLine: 'Berbasis model minat karier Holland (RIASEC) yang dipakai konselor karier.',

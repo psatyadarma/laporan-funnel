@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import type { Env } from './env';
 import { pixelIdFor } from './env';
 import { getBet, BETS } from '../bets';
-import { toPublic } from '../shared/types';
+import { askedFor, toPublic } from '../shared/types';
 import type { Answers, ReportContent } from '../shared/types';
 import { getProvider } from './payments';
 import { generateAiReport } from './ai';
@@ -83,8 +83,7 @@ app.post('/api/sessions/:id/complete', async (c) => {
   const answers: Answers = {};
   for (const q of bet.questions) {
     const v = b.answers?.[q.id];
-    const visible = q.kind !== 'date' || !q.onlyForVariants || q.onlyForVariants.includes(s.variant ?? '');
-    if (!visible) continue;
+    if (!askedFor(q, s.variant)) continue;
     if (q.kind === 'choice') {
       if (!q.options.some((o) => o.id === v)) return c.json({ error: `Pertanyaan belum dijawab: ${q.prompt}` }, 400);
       answers[q.id] = v as string;

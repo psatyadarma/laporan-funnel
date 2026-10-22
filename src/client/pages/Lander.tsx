@@ -49,13 +49,13 @@ export function Lander() {
         {hook.eyebrow && <span className="eyebrow">{hook.eyebrow}</span>}
         <h1>{hook.headline}</h1>
         <p className="lead">{hook.sub}</p>
-        <ul className="checks">{bet.landerBullets.map((b) => <li key={b}>{b}</li>)}</ul>
+        <ul className="checks">{(hook.bullets ?? bet.landerBullets).map((b) => <li key={b}>{b}</li>)}</ul>
       </div>
       <div className="spacer" />
       {bet.mode === 'live' ? (
         <div className="stack">
           <button className="btn" onClick={() => { track(bet.slug, 'cta_click'); nav(`/${bet.slug}/quiz`); }}>{hook.cta}</button>
-          <p className="small muted" style={{ textAlign: 'center' }}>{bet.trustLine}</p>
+          <p className="small muted" style={{ textAlign: 'center' }}>{hook.trust ?? bet.trustLine}</p>
         </div>
       ) : joined ? (
         <div className="card fade"><h3>✓ Terdaftar</h3><p className="muted" style={{ margin: 0 }}>{bet.waitlist.thanks}</p></div>
@@ -65,7 +65,7 @@ export function Lander() {
           <input className="field" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={bet.waitlist.placeholder} required minLength={6} />
           <button className="btn" disabled={busy}>{busy ? 'Menyimpan…' : bet.waitlist.button}</button>
           {formError && <div className="error">{formError}</div>}
-          <p className="small muted" style={{ margin: 0 }}>{bet.trustLine}</p>
+          <p className="small muted" style={{ margin: 0 }}>{hook.trust ?? bet.trustLine}</p>
         </form>
       )}
     </div>

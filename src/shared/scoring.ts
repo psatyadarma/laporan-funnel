@@ -39,16 +39,19 @@ export function topDimension(scores: Scores, dims: string[]): string {
 
 // ---------- Weton (Javanese day + pasaran) ----------
 // Anchor: 17 August 1945 (Proklamasi) is widely recorded as Jumat Legi.
-// Note: in tradition the Javanese day starts at sunset; we use the civil date.
+// In tradition the Javanese day starts at sunset; pass afterSunset for births after maghrib.
 const PASARAN = ['Legi', 'Pahing', 'Pon', 'Wage', 'Kliwon'] as const;
 const PASARAN_NEPTU: Record<string, number> = { Legi: 5, Pahing: 9, Pon: 7, Wage: 4, Kliwon: 8 };
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'] as const;
 const HARI_NEPTU: Record<string, number> = { Minggu: 5, Senin: 4, Selasa: 3, Rabu: 7, Kamis: 8, Jumat: 6, Sabtu: 9 };
 
-export function weton(isoDate: string): { hari: string; pasaran: string; neptu: number; label: string } | null {
+/**
+ * @param afterSunset born after maghrib: in Javanese tradition the day has already changed, so the weton is the next day's.
+ */
+export function weton(isoDate: string, afterSunset = false): { hari: string; pasaran: string; neptu: number; label: string } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
   if (!m) return null;
-  const utc = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const utc = Date.UTC(+m[1], +m[2] - 1, +m[3]) + (afterSunset ? 86_400_000 : 0);
   if (Number.isNaN(utc)) return null;
   const anchor = Date.UTC(1945, 7, 17);
   const days = Math.round((utc - anchor) / 86_400_000);

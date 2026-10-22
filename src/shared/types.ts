@@ -9,6 +9,9 @@ export interface HookVariant {
   headline: string;
   sub: string;
   cta: string;
+  /** Optional overrides so a variant can set its own expectations. */
+  bullets?: string[];
+  trust?: string;
 }
 
 export interface QuizOption {
@@ -18,10 +21,22 @@ export interface QuizOption {
   points?: Record<string, number>;
 }
 
+interface QuestionBase {
+  id: string;
+  prompt: string;
+  help?: string;
+  /** Only asked when the visitor came in on one of these hook variants (e.g. ['weton']). */
+  onlyForVariants?: string[];
+}
+
 export type QuizQuestion =
-  | { id: string; kind: 'choice'; prompt: string; help?: string; options: QuizOption[] }
-  | { id: string; kind: 'date'; prompt: string; help?: string; optional?: boolean; onlyForVariants?: string[] }
-  | { id: string; kind: 'text'; prompt: string; help?: string; placeholder?: string; optional?: boolean };
+  | (QuestionBase & { kind: 'choice'; options: QuizOption[] })
+  | (QuestionBase & { kind: 'date'; optional?: boolean })
+  | (QuestionBase & { kind: 'text'; placeholder?: string; optional?: boolean });
+
+export function askedFor(q: QuizQuestion, variant: string | null | undefined): boolean {
+  return !q.onlyForVariants || q.onlyForVariants.includes(variant ?? '');
+}
 
 export type Answers = Record<string, string>;
 

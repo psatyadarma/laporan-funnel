@@ -297,8 +297,9 @@ app.get('/api/reports/:token', async (c) => {
 
 // ---------- Admin funnel stats ----------
 function isAdmin(c: Context<{ Bindings: Env }>) {
-  const key = c.req.query('key') ?? c.req.header('x-admin-key');
-  return !!c.env.ADMIN_KEY && key === c.env.ADMIN_KEY;
+  const key = (c.req.query('key') ?? c.req.header('x-admin-key') ?? '').trim();
+  const expected = (c.env.ADMIN_KEY ?? '').trim();
+  return !!expected && key === expected;
 }
 
 app.get('/api/admin/stats', async (c) => {

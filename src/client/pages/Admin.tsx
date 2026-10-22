@@ -35,7 +35,10 @@ export function Admin() {
       const s = await api<Stats>(`/api/admin/stats?key=${encodeURIComponent(k)}&days=${days}`);
       store('adminKey', k);
       setStats(s);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(msg === 'unauthorized' ? 'Wrong password, or ADMIN_KEY is missing in Cloudflare (Settings → Variables and Secrets).' : msg);
+    }
   }
   useEffect(() => { if (key) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [days]);
 

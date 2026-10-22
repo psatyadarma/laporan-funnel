@@ -1,0 +1,42 @@
+name: Generate ads
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Only one bet or hook, e.g. peta-rezeki or siap-nikah:3 (empty = all)'
+        required: false
+        default: ''
+      hook_ideas:
+        description: 'Also ask the AI for 10 new hook ideas per bet (needs AI_API_KEY secret, ~Rp1.000)'
+        type: boolean
+        default: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Render creatives from the live site
+        run: node ads/render.mjs --app "$LIVE_URL" --link "$LIVE_URL" ${{ inputs.only && format('--only {0}', inputs.only) || '' }}
+        env:
+          LIVE_URL: ${{ vars.LIVE_URL || 'https://laporan-funnel.psatyadarma2.workers.dev' }}
+      - name: AI hook ideas
+        if: inputs.hook_ideas
+        run: node ads/new-hooks.mjs --app "$LIVE_URL"
+        env:
+          LIVE_URL: ${{ vars.LIVE_URL || 'https://laporan-funnel.psatyadarma2.workers.dev' }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ad-creatives
+          path: ads/out
+          retention-days: 30

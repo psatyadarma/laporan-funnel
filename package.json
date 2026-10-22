@@ -13,7 +13,9 @@
     "db:migrate:local": "wrangler d1 migrations apply laporan --local",
     "db:migrate:remote": "wrangler d1 migrations apply laporan --remote",
     "deploy": "npm run build && wrangler deploy",
-    "smoke": "node tests/smoke/smoke.mjs"
+    "smoke": "node tests/smoke/smoke.mjs",
+    "ads": "node ads/render.mjs",
+    "ads:ideas": "node ads/new-hooks.mjs"
   },
   "dependencies": {
     "hono": "^4.6.14",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
+    "@fontsource/plus-jakarta-sans": "^5.1.1",
     "@playwright/test": "^1.56.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

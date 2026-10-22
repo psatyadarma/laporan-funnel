@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, rupiah, store } from '../api';
-import type { ReportContent } from '../../shared/types';
+import type { PublicBetConfig, ReportContent } from '../../shared/types';
+import { askedFor } from '../../shared/types';
 
 interface Row { bet: string; variant: string; name: string; n: number; uniq: number; value: number }
-interface Stats { days: number; bets: string[]; events: Row[]; waitlist: { bet: string; n: number }[]; reports: { status: string; n: number }[] }
+interface QRow { bet: string; variant: string; q: number; uniq: number }
+interface Stats { days: number; bets: string[]; events: Row[]; waitlist: { bet: string; n: number }[]; reports: { status: string; n: number }[]; questions: QRow[] }
 
 const STEPS: [string, string][] = [
   ['lp_view', 'Lander'], ['cta_click', 'CTA tap'], ['waitlist_join', 'Waitlist'], ['quiz_start', 'Quiz start'], ['quiz_complete', 'Quiz done'],
@@ -18,6 +20,14 @@ export function Admin() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState('');
   const [test, setTest] = useState<{ busy?: boolean; error?: string; info?: string; content?: ReportContent }>({});
+  const [configs, setConfigs] = useState<Record<string, PublicBetConfig>>({});
+
+  useEffect(() => {
+    for (const slug of stats?.bets ?? []) {
+      if (configs[slug]) continue;
+      api<PublicBetConfig>(`/api/bets/${slug}`).then((b) => setConfigs((c) => ({ ...c, [slug]: b }))).catch(() => {});
+    }
+  }, [stats, configs]);
 
   async function load(k = key) {
     setError('');
@@ -74,6 +84,7 @@ export function Admin() {
               </tbody>
             </table>
           </div>
+          <QuizDropoff stats={stats} configs={configs} groups={groups} />
           <div className="card" style={{ marginTop: 16 }}>
             <h3>Test AI report</h3>
             <p className="small muted">Writes an AI report for the most recent completed quiz, without payment. Nothing is saved. Takes up to a minute.</p>
@@ -104,6 +115,52 @@ export function Admin() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+/** Per-question drop-off: how many quiz starters answered each question. The biggest drop is highlighted. */
+function QuizDropoff({ stats, configs, groups }: { stats: Stats; configs: Record<string, PublicBetConfig>; groups: Map<string, Record<string, Row>> }) {
+  const byGroup = new Map<string, QRow[]>();
+  for (const r of stats.questions ?? []) {
+    const k = `${r.bet}|${r.variant}`;
+    byGroup.set(k, [...(byGroup.get(k) ?? []), r]);
+  }
+  if (!byGroup.size) return null;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>Quiz drop-off by question</h3>
+      <p className="small muted">Share of quiz starters who answered each question. The biggest drop is marked; trim or rewrite that question first.</p>
+      {[...byGroup.entries()].sort().map(([k, rows]) => {
+        const [bet, variant] = k.split('|');
+        const starters = groups.get(k)?.quiz_start?.uniq ?? rows[0]?.uniq ?? 0;
+        const qs = (configs[bet]?.questions ?? []).filter((q) => askedFor(q, variant));
+        const counts = rows.map((r) => r.uniq);
+        let worst = -1, worstDrop = 0;
+        counts.forEach((n, i) => { const prev = i === 0 ? starters : counts[i - 1]; const d = prev - n; if (d > worstDrop) { worstDrop = d; worst = i; } });
+        return (
+          <div key={k} className="table-wrap" style={{ marginTop: 12 }}>
+            <p className="small" style={{ margin: '0 0 6px', fontWeight: 700 }}>{bet} · hook {variant} · {starters} starters</p>
+            <table>
+              <thead><tr><th>#</th><th>Question</th><th>Answered</th><th>% of starters</th><th>Lost here</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const prev = i === 0 ? starters : rows[i - 1].uniq;
+                  return (
+                    <tr key={r.q} style={i === worst ? { background: 'var(--soft)', fontWeight: 700 } : undefined}>
+                      <td>{r.q}</td>
+                      <td style={{ textAlign: 'left', whiteSpace: 'normal', minWidth: 220 }}>{qs[r.q - 1]?.prompt ?? '–'}</td>
+                      <td>{r.uniq}</td>
+                      <td>{pct(r.uniq, starters)}</td>
+                      <td>{Math.max(0, prev - r.uniq)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }

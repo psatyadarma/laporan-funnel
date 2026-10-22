@@ -13,7 +13,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 const EVENT_NAMES = new Set([
   'lp_view', 'cta_click', 'waitlist_join', 'quiz_start', 'quiz_complete', 'preview_view',
-  'paywall_view', 'checkout_start', 'purchase', 'report_view', 'share_click',
+  'paywall_view', 'checkout_start', 'purchase', 'report_view', 'share_click', 'quiz_q',
 ]);
 
 const now = () => Date.now();
@@ -44,7 +44,10 @@ app.post('/api/events', async (c) => {
   const bet = clip(b.bet, 40);
   const name = clip(b.name, 40);
   if (!bet || !getBet(bet) || !name || !EVENT_NAMES.has(name) || name === 'purchase') return c.json({ ok: false }, 400);
-  await logEvent(c.env, { bet, variant: clip(b.variant, 20), name, sessionId: clip(b.sessionId, 40), visitorId: clip(b.visitorId, 40) });
+  // Only quiz_q carries a value (the question number); purchase values are logged server-side.
+  const qn = name === 'quiz_q' ? Math.trunc(Number(b.value)) : NaN;
+  if (name === 'quiz_q' && !(qn >= 1 && qn <= 100)) return c.json({ ok: false }, 400);
+  await logEvent(c.env, { bet, variant: clip(b.variant, 20), name, sessionId: clip(b.sessionId, 40), visitorId: clip(b.visitorId, 40), value: Number.isNaN(qn) ? null : qn });
   return c.json({ ok: true });
 });
 
@@ -293,11 +296,16 @@ app.get('/api/admin/stats', async (c) => {
   const since = now() - days * 86_400_000;
   const { results: ev } = await c.env.DB.prepare(`SELECT bet, COALESCE(variant, '-') AS variant, name,
       COUNT(*) AS n, COUNT(DISTINCT COALESCE(visitor_id, session_id)) AS uniq, COALESCE(SUM(value), 0) AS value
-    FROM events WHERE created_at > ? GROUP BY bet, variant, name`).bind(since).all<{ bet: string; variant: string; name: string; n: number; uniq: number; value: number }>();
+    FROM events WHERE created_at > ? AND name != 'quiz_q' GROUP BY bet, variant, name`).bind(since).all<{ bet: string; variant: string; name: string; n: number; uniq: number; value: number }>();
   const { results: wl } = await c.env.DB.prepare('SELECT bet, COUNT(*) AS n FROM waitlist WHERE created_at > ? GROUP BY bet').bind(since).all<{ bet: string; n: number }>();
   const { results: reports } = await c.env.DB.prepare(`SELECT r.status, COUNT(*) AS n FROM reports r JOIN orders o ON o.id = r.order_id WHERE o.paid_at > ? GROUP BY r.status`)
     .bind(since).all<{ status: string; n: number }>();
-  return c.json({ days, bets: Object.keys(BETS), events: ev, waitlist: wl, reports });
+  // How many people answered each question, to see where they quit.
+  const { results: questions } = await c.env.DB.prepare(`SELECT bet, COALESCE(variant, '-') AS variant, value AS q,
+      COUNT(DISTINCT COALESCE(visitor_id, session_id)) AS uniq
+    FROM events WHERE created_at > ? AND name = 'quiz_q' GROUP BY bet, variant, value ORDER BY bet, variant, value`)
+    .bind(since).all<{ bet: string; variant: string; q: number; uniq: number }>();
+  return c.json({ days, bets: Object.keys(BETS), events: ev, waitlist: wl, reports, questions });
 });
 
 // Generates an AI report for a completed quiz session without payment, so you can check quality. Not stored.

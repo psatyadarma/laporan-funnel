@@ -63,6 +63,8 @@ export function Quiz() {
     const next = { ...answers };
     if (value) next[q.id] = value; else delete next[q.id];
     setAnswers(next);
+    // Per-question tracking: value = question number (1-based) within this variant's quiz.
+    if (bet) track(bet.slug, 'quiz_q', { sessionId: sessionId ?? undefined, value: step + 1 });
     if (step + 1 < questions.length) setTimeout(() => setStep(step + 1), q.kind === 'choice' ? 180 : 0);
     else finish(next);
   }

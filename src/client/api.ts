@@ -55,7 +55,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
   return json as T;
 }
 
-export function track(bet: string, name: string, extra: { sessionId?: string } = {}) {
+export function track(bet: string, name: string, extra: { sessionId?: string; value?: number } = {}) {
   const body = JSON.stringify({ bet, name, variant: store(`variant:${bet}`) ?? '1', visitorId: visitorId(), ...extra });
   try {
     if (navigator.sendBeacon?.(`/api/events`, new Blob([body], { type: 'application/json' }))) return;

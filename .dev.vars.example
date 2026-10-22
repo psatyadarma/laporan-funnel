@@ -1,0 +1,4 @@
+ADMIN_KEY=change-me
+# AI_API_KEY=sk-or-...        (optional locally; without it reports use the built-in template)
+# MAYAR_API_KEY=...           (only when PAYMENT_PROVIDER=mayar)
+# META_CAPI_TOKEN=...

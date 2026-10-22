@@ -39,7 +39,7 @@ export async function sendPurchase(env: Env, o: PurchaseOrder): Promise<boolean>
       event_time: Math.floor((o.paid_at ?? Date.now()) / 1000),
       event_id: o.event_id,
       action_source: 'website',
-      event_source_url: client.url ?? `${env.PUBLIC_BASE_URL}/${o.bet}`,
+      event_source_url: client.url ?? `${env.PUBLIC_BASE_URL || ''}/${o.bet}`,
       user_data,
       custom_data: { currency: 'IDR', value: o.amount },
     }],

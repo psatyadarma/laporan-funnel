@@ -27,15 +27,15 @@ npm run db:migrate:local
 npm run dev                             # http://localhost:8787
 npm test
 ```
-Locally `PAYMENT_PROVIDER=mock`: the "payment page" is a simulation. Without `AI_API_KEY`, reports use the template.
+Locally `.dev.vars` sets `PAYMENT_PROVIDER=mock` (a simulated payment page, which only works on localhost). Without `AI_API_KEY`, reports use the template. Production defaults to Mayar; until `MAYAR_API_KEY` is set, checkout shows "Pembayaran belum aktif" instead of handing out free reports.
 
 ## Deploy (about 30 minutes)
 1. **Cloudflare:** create a free account, then `npx wrangler login`.
 2. **Database:** `npx wrangler d1 create laporan` and paste the `database_id` into `wrangler.jsonc`. Then run `npm run db:migrate:remote`.
-3. **Domain:** add your domain in Cloudflare and route it to the worker (Workers → laporan-funnel → Settings → Domains). Set `PUBLIC_BASE_URL` in `wrangler.jsonc` to that URL.
+3. **Domain (optional at first):** the app works on its `workers.dev` URL. Later, add your domain in Cloudflare and attach it to the worker (Workers → laporan-funnel → Settings → Domains & Routes). `PUBLIC_BASE_URL` can stay empty; the app uses whatever URL the visitor came in on.
 4. **Mayar:** sign up at mayar.id and complete individual verification (KTP, selfie with KTP, bank account). Create a Read & Write API key, then:
    - `npx wrangler secret put MAYAR_API_KEY`
-   - in `wrangler.jsonc` set `PAYMENT_PROVIDER` to `"mayar"` and `MAYAR_API_BASE` to `"https://api.mayar.id/hl/v2"` (the default points to the sandbox, `api.mayar.io`)
+   - `wrangler.jsonc` already uses `PAYMENT_PROVIDER: "mayar"` and the production API (`https://api.mayar.id/hl/v2`). For Mayar's sandbox, use `https://api.mayar.io/hl/v2` with a sandbox key.
    - in the Mayar dashboard, set the webhook URL to `https://YOUR_DOMAIN/api/webhooks/mayar`
 5. **AI:** create an OpenRouter key (or use any OpenAI-compatible provider: change `AI_BASE_URL` and `AI_MODEL`). Then `npx wrangler secret put AI_API_KEY`. Budget roughly Rp1–3K per report depending on the model.
 6. **Admin:** `npx wrangler secret put ADMIN_KEY`.

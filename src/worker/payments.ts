@@ -72,7 +72,7 @@ function mock(env: Env): PaymentProvider {
   return {
     name: 'mock',
     async create(i) {
-      return { ref: `mock_${i.orderId}`, link: `${env.PUBLIC_BASE_URL}/mock-pay/${i.orderId}` };
+      return { ref: `mock_${i.orderId}`, link: `${new URL(i.returnUrl).origin}/mock-pay/${i.orderId}` };
     },
     async status(ref) {
       const row = await env.DB.prepare('SELECT status FROM orders WHERE provider_ref = ?').bind(ref).first<{ status: string }>();
@@ -86,5 +86,7 @@ export function getProvider(env: Env): PaymentProvider {
     if (!env.MAYAR_API_KEY) throw new Error('MAYAR_API_KEY is not set');
     return mayar(env);
   }
-  return mock(env);
+  // Mock payments only on localhost, so a misconfigured production deploy can never hand out free reports.
+  if (env.PAYMENT_PROVIDER === 'mock' && /^http:\/\/(localhost|127\.0\.0\.1)/.test(env.PUBLIC_BASE_URL || '')) return mock(env);
+  throw new Error(`Payment provider not configured (${env.PAYMENT_PROVIDER})`);
 }

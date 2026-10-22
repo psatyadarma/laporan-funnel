@@ -21,6 +21,8 @@ function randomId(bytes = 12): string {
   const b = crypto.getRandomValues(new Uint8Array(bytes));
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+/** Public origin: PUBLIC_BASE_URL if set, otherwise the URL this request came in on. */
+const baseUrl = (c: Context<{ Bindings: Env }>) => (c.env.PUBLIC_BASE_URL || new URL(c.req.url).origin).replace(/\/$/, '');
 const clip = (v: unknown, n = 200) => (typeof v === 'string' ? v.slice(0, n) : undefined);
 
 async function logEvent(env: Env, e: { bet: string; variant?: string | null; name: string; sessionId?: string | null; visitorId?: string | null; value?: number | null }) {
@@ -128,14 +130,18 @@ app.post('/api/orders', async (c) => {
     fbc: clip(b.fbc, 200),
     url: clip(b.url, 300),
   });
-  const provider = getProvider(c.env);
+  let provider;
+  try { provider = getProvider(c.env); } catch (err) {
+    console.error(err);
+    return c.json({ error: 'Pembayaran belum aktif. Coba lagi nanti.' }, 503);
+  }
   await c.env.DB.prepare(`INSERT INTO orders (id, session_id, bet, amount, status, provider, name, email, mobile, event_id, client_json, report_token, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(orderId, s.id, bet.slug, bet.price, provider.name, name, email, mobile, eventId, client, randomId(18), now()).run();
   try {
     const pay = await provider.create({
       orderId, title: `${bet.brand}: Laporan Lengkap`, amount: bet.price, name, email, mobile,
-      returnUrl: `${c.env.PUBLIC_BASE_URL}/${bet.slug}/order/${orderId}`,
+      returnUrl: `${baseUrl(c)}/${bet.slug}/order/${orderId}`,
     });
     await c.env.DB.prepare('UPDATE orders SET provider_ref = ?, pay_link = ? WHERE id = ?').bind(pay.ref, pay.link, orderId).run();
     await logEvent(c.env, { bet: bet.slug, variant: s.variant, name: 'checkout_start', sessionId: s.id, visitorId: clip(b.visitorId, 40) });
@@ -243,7 +249,7 @@ async function recheckPending(env: Env, waitUntil: (p: Promise<unknown>) => void
 
 // Local testing only: simulates a successful payment.
 app.post('/api/mock/pay/:id', async (c) => {
-  if (c.env.PAYMENT_PROVIDER !== 'mock') return c.json({ error: 'disabled' }, 403);
+  if (c.env.PAYMENT_PROVIDER !== 'mock' || !/^http:\/\/(localhost|127\.0\.0\.1)/.test(baseUrl(c))) return c.json({ error: 'disabled' }, 403);
   const o = await c.env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(c.req.param('id')).first<OrderRow>();
   if (!o) return c.json({ error: 'not found' }, 404);
   await markPaid(c.env, o, (p) => c.executionCtx.waitUntil(p));

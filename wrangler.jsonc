@@ -8,13 +8,13 @@
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "laporan", "database_id": "REPLACE_WITH_YOUR_D1_ID", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "laporan", "database_id": "3eec6ea9-7012-4c71-854f-cc74befbcd4e", "migrations_dir": "migrations" }
   ],
   "triggers": { "crons": ["*/10 * * * *"] },
   "vars": {
-    "PUBLIC_BASE_URL": "http://localhost:8787",
-    "PAYMENT_PROVIDER": "mock",
-    "MAYAR_API_BASE": "https://api.mayar.io/hl/v2",
+    "PUBLIC_BASE_URL": "",
+    "PAYMENT_PROVIDER": "mayar",
+    "MAYAR_API_BASE": "https://api.mayar.id/hl/v2",
     "AI_BASE_URL": "https://openrouter.ai/api/v1",
     "AI_MODEL": "anthropic/claude-sonnet-4.5"
   }

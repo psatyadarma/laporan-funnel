@@ -50,6 +50,16 @@ Locally `.dev.vars` sets `PAYMENT_PROVIDER=mock` (a simulated payment page, whic
 - Add a privacy policy and refund page (link them in the footer) and read Meta's ad policies on income claims.
 - Report delivery: buyers see their report link on screen and Mayar emails a receipt. Sending the report link by WhatsApp/email (e.g. via Fonnte or Resend) is a recommended next step, so buyers who close the tab can find it again.
 
+## QA: how releases are protected
+| Layer | What runs | When |
+|---|---|---|
+| Unit tests (`npm test`) | Scoring, weton, report parser (incl. the cut-off report regression), AI provider errors, payment signatures, bet config integrity | Every Cloudflare build: `npm run build` runs typecheck + unit tests, so **a failing test blocks the deploy** |
+| End-to-end (`npm run test:e2e`) | A real browser clicks through lander → quiz → preview → payment → report on a phone-sized screen, with mock payments and a fake AI that can misbehave (cut off, no ending, errors, slow). Also waitlists, admin, API guards | GitHub Actions on every push and pull request |
+| Smoke test (`npm run smoke`) | Checks the live site: settings present, pages and scripts load, admin protected, mock payments off, quiz scoring works | GitHub Actions ~2.5 minutes after each push to `main` |
+| Real AI check | Generates one real report on the live site and checks it's complete (costs ~Rp1.000) | Manually: GitHub → Actions → QA → Run workflow → tick the box. Needs the `ADMIN_KEY` repository secret |
+
+Run everything locally with `npm run qa`. When you change quiz content or prompts, the config tests catch broken edits before they ship.
+
 ## Add or change a bet
 Copy `src/bets/peta-rezeki.ts`, change questions, scoring, profiles, preview, template report and AI prompt, register it in `src/bets/index.ts`, and set `mode: 'live'`. Waitlist-only bets live in `src/bets/waitlist-bets.ts`.
 

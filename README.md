@@ -15,7 +15,7 @@ Ad links pick the lander headline with `?h=`: `/peta-rezeki?h=1`, `?h=2`, `?h=we
 - **Back end:** Hono on Cloudflare Workers (`src/worker/`), D1 database, cron every 10 minutes.
 - **Scoring:** deterministic code (Holland RIASEC × money style → 12 profiles). The same answers always give the same profile.
 - **Reports:** written by an AI model (any OpenAI-compatible API, default OpenRouter) as structured JSON. If no AI key is set, or the AI fails 3 times, a built-in template report is used, so a buyer always gets a report.
-- **Payments:** Mayar (QRIS, e-wallets, VA; individuals can verify with a KTP, no NIB). Payment status is always confirmed with Mayar's API, never trusted from the webhook body.
+- **Payments:** Midtrans Snap by default (QRIS, GoPay, bank transfer; individuals register with a KTP). Mayar is also supported. Status is always confirmed with the provider's API.
 - **Tracking:** Meta Pixel (browser) + Conversions API (server) with a shared `event_id` for deduplication, plus our own funnel events.
 - **Admin:** `/admin` shows unique visitors per funnel step per bet and hook, conversion rates and revenue.
 
@@ -27,16 +27,18 @@ npm run db:migrate:local
 npm run dev                             # http://localhost:8787
 npm test
 ```
-Locally `.dev.vars` sets `PAYMENT_PROVIDER=mock` (a simulated payment page, which only works on localhost). Without `AI_API_KEY`, reports use the template. Production defaults to Mayar; until `MAYAR_API_KEY` is set, checkout shows "Pembayaran belum aktif" instead of handing out free reports.
+Locally `.dev.vars` sets `PAYMENT_PROVIDER=mock` (a simulated payment page, which only works on localhost). Without `AI_API_KEY`, reports use the template. Production defaults to Midtrans; until `MIDTRANS_SERVER_KEY` is set, checkout shows "Pembayaran belum aktif" instead of handing out free reports.
 
 ## Deploy (about 30 minutes)
 1. **Cloudflare:** create a free account, then `npx wrangler login`.
 2. **Database:** `npx wrangler d1 create laporan` and paste the `database_id` into `wrangler.jsonc`. Then run `npm run db:migrate:remote`.
 3. **Domain (optional at first):** the app works on its `workers.dev` URL. Later, add your domain in Cloudflare and attach it to the worker (Workers → laporan-funnel → Settings → Domains & Routes). `PUBLIC_BASE_URL` can stay empty; the app uses whatever URL the visitor came in on.
-4. **Mayar:** sign up at mayar.id and complete individual verification (KTP, selfie with KTP, bank account). Create a Read & Write API key, then:
-   - `npx wrangler secret put MAYAR_API_KEY`
-   - `wrangler.jsonc` already uses `PAYMENT_PROVIDER: "mayar"` and the production API (`https://api.mayar.id/hl/v2`). For Mayar's sandbox, use `https://api.mayar.io/hl/v2` with a sandbox key.
-   - in the Mayar dashboard, set the webhook URL to `https://YOUR_DOMAIN/api/webhooks/mayar`
+4. **Payments: Midtrans (default).** Register at midtrans.com as **Individual – Starter Pack** (KTP: QRIS, GoPay, bank transfer; add NPWP for cards).
+   - Test first in sandbox: copy the **sandbox** Server Key (Settings → Access Keys, starts with `SB-Mid-server-`) and run `npx wrangler secret put MIDTRANS_SERVER_KEY`, or add it as a Secret in the dashboard. `MIDTRANS_PRODUCTION` is `"false"` in `wrangler.jsonc`.
+   - In the Midtrans dashboard (Settings → Configuration) set the **Payment Notification URL** to `https://YOUR_DOMAIN/api/webhooks/midtrans`.
+   - Go live: replace the secret with the **production** Server Key and set `MIDTRANS_PRODUCTION` to `"true"`.
+   - Notifications are verified with Midtrans' SHA-512 signature, and status is also confirmed through the status API.
+   - **Alternative: Mayar.** Set `PAYMENT_PROVIDER` to `"mayar"`, add `MAYAR_API_KEY`, and set the webhook URL to `https://YOUR_DOMAIN/api/webhooks/mayar`. Mayar's webhook isn't signed, so the app always re-checks status with its API.
 5. **AI:** create an OpenRouter key (or use any OpenAI-compatible provider: change `AI_BASE_URL` and `AI_MODEL`). Then `npx wrangler secret put AI_API_KEY`. Budget roughly Rp1–3K per report depending on the model.
 6. **Admin:** `npx wrangler secret put ADMIN_KEY`.
 7. **Meta:** create a Pixel per brand. Set `META_PIXEL_IDS` in `wrangler.jsonc` vars, e.g. `{"peta-rezeki":"123","siap-nikah":"456","pilih-jurusan":"789"}`. Create a Conversions API token (Events Manager → Settings), then `npx wrangler secret put META_CAPI_TOKEN`.

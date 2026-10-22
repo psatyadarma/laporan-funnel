@@ -2,10 +2,14 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   PUBLIC_BASE_URL: string;
-  /** "mock" for local testing, "mayar" for real payments. */
+  /** "mock" for local testing; "midtrans" or "mayar" for real payments. */
   PAYMENT_PROVIDER: string;
   MAYAR_API_BASE: string;
   MAYAR_API_KEY?: string;
+  /** Midtrans server key (Settings → Access Keys). Sandbox keys start with "SB-Mid-server-". */
+  MIDTRANS_SERVER_KEY?: string;
+  /** "true" for real payments, anything else uses the Midtrans sandbox. */
+  MIDTRANS_PRODUCTION?: string;
   /** Any OpenAI-compatible chat completions API (OpenRouter, OpenAI, ...). Without a key, reports use the built-in template. */
   AI_BASE_URL: string;
   AI_MODEL: string;

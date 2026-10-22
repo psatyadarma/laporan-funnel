@@ -101,3 +101,25 @@ describe('weton after maghrib', () => {
     expect(String(unk.facts.wetonIfAfterMaghrib)).toContain('Sabtu Pahing');
   });
 });
+
+import { midtransStatus, verifyMidtransSignature } from '../src/worker/payments';
+import { createHash } from 'node:crypto';
+
+describe('midtrans', () => {
+  it('maps statuses', () => {
+    expect(midtransStatus('settlement')).toBe('paid');
+    expect(midtransStatus('capture', 'accept')).toBe('paid');
+    expect(midtransStatus('capture', 'deny')).toBe('pending');
+    expect(midtransStatus('pending')).toBe('pending');
+    expect(midtransStatus('expire')).toBe('expired');
+    expect(midtransStatus('cancel')).toBe('expired');
+  });
+  it('verifies notification signatures', async () => {
+    const key = 'SB-Mid-server-test';
+    const body = { order_id: 'abc123', status_code: '200', gross_amount: '99000.00' };
+    const signature_key = createHash('sha512').update(body.order_id + body.status_code + body.gross_amount + key).digest('hex');
+    expect(await verifyMidtransSignature({ ...body, signature_key }, key)).toBe(true);
+    expect(await verifyMidtransSignature({ ...body, signature_key }, 'wrong-key')).toBe(false);
+    expect(await verifyMidtransSignature({ ...body, gross_amount: '1.00', signature_key }, key)).toBe(false);
+  });
+});

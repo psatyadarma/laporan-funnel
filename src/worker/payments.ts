@@ -67,6 +67,71 @@ function mayar(env: Env): PaymentProvider {
   };
 }
 
+// Midtrans Snap (docs.midtrans.com). Individuals can register with a KTP ("Individual – Starter Pack":
+// QRIS, GoPay, bank transfer; cards need NPWP). Notifications are signed; status is also confirmed via the API.
+function midtransHosts(env: Env) {
+  const prod = env.MIDTRANS_PRODUCTION === 'true';
+  return {
+    snap: prod ? 'https://app.midtrans.com/snap/v1/transactions' : 'https://app.sandbox.midtrans.com/snap/v1/transactions',
+    api: prod ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com',
+  };
+}
+
+function midtransAuth(env: Env) {
+  return { Authorization: `Basic ${btoa(`${env.MIDTRANS_SERVER_KEY}:`)}`, 'Content-Type': 'application/json', Accept: 'application/json' };
+}
+
+/** Maps a Midtrans transaction_status (+ fraud_status) to our status. */
+export function midtransStatus(transactionStatus: string, fraudStatus?: string): PayStatus {
+  const t = transactionStatus.toLowerCase();
+  if ((t === 'settlement' || t === 'capture') && (!fraudStatus || fraudStatus.toLowerCase() === 'accept')) return 'paid';
+  if (['expire', 'cancel', 'deny', 'failure'].includes(t)) return 'expired';
+  return 'pending';
+}
+
+/** Verifies a Midtrans notification: signature_key = SHA512(order_id + status_code + gross_amount + server key). */
+export async function verifyMidtransSignature(
+  body: { order_id?: string; status_code?: string; gross_amount?: string; signature_key?: string },
+  serverKey: string,
+): Promise<boolean> {
+  if (!body.order_id || !body.status_code || !body.gross_amount || !body.signature_key) return false;
+  const data = new TextEncoder().encode(body.order_id + body.status_code + body.gross_amount + serverKey);
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-512', data))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hash === body.signature_key.toLowerCase();
+}
+
+function midtrans(env: Env): PaymentProvider {
+  const hosts = midtransHosts(env);
+  return {
+    name: 'midtrans',
+    async create(i) {
+      const res = await fetch(hosts.snap, {
+        method: 'POST',
+        headers: midtransAuth(env),
+        body: JSON.stringify({
+          transaction_details: { order_id: i.orderId, gross_amount: i.amount },
+          item_details: [{ id: 'report', price: i.amount, quantity: 1, name: i.title.slice(0, 50) }],
+          customer_details: { first_name: i.name.slice(0, 50), email: i.email, phone: i.mobile },
+          callbacks: { finish: i.returnUrl },
+          expiry: { unit: 'hour', duration: 24 },
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { token?: string; redirect_url?: string; error_messages?: string[] };
+      if (!res.ok || !json.redirect_url) {
+        throw new Error(`Midtrans create failed (${res.status}): ${(json.error_messages ?? []).join('; ') || 'no message'}`);
+      }
+      return { ref: i.orderId, link: json.redirect_url }; // Midtrans identifies the payment by our order_id
+    },
+    async status(ref) {
+      const res = await fetch(`${hosts.api}/v2/${encodeURIComponent(ref)}/status`, { headers: midtransAuth(env) });
+      if (!res.ok) return 'pending';
+      const json = (await res.json()) as { status_code?: string; transaction_status?: string; fraud_status?: string };
+      if (json.status_code === '404' || !json.transaction_status) return 'pending'; // buyer hasn't picked a method yet
+      return midtransStatus(json.transaction_status, json.fraud_status);
+    },
+  };
+}
+
 /** Local testing: the "payment page" is /mock-pay/:orderId in this app. */
 function mock(env: Env): PaymentProvider {
   return {
@@ -82,6 +147,10 @@ function mock(env: Env): PaymentProvider {
 }
 
 export function getProvider(env: Env): PaymentProvider {
+  if (env.PAYMENT_PROVIDER === 'midtrans') {
+    if (!env.MIDTRANS_SERVER_KEY) throw new Error('MIDTRANS_SERVER_KEY is not set');
+    return midtrans(env);
+  }
   if (env.PAYMENT_PROVIDER === 'mayar') {
     if (!env.MAYAR_API_KEY) throw new Error('MAYAR_API_KEY is not set');
     return mayar(env);

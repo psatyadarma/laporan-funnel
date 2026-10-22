@@ -5,7 +5,7 @@ import { pixelIdFor } from './env';
 import { getBet, BETS } from '../bets';
 import { askedFor, toPublic } from '../shared/types';
 import type { Answers, ReportContent } from '../shared/types';
-import { getProvider } from './payments';
+import { getProvider, verifyMidtransSignature } from './payments';
 import { generateAiReport } from './ai';
 import { sendPurchase } from './capi';
 
@@ -248,6 +248,17 @@ app.get('/api/orders/:id', async (c) => {
     reportToken: fresh.status === 'paid' ? fresh.report_token : null,
     reportStatus: r?.status ?? null,
   });
+});
+
+// Midtrans calls this when a transaction changes. We verify the signature, then confirm with the status API.
+app.post('/api/webhooks/midtrans', async (c) => {
+  const body = await c.req.json<Record<string, string>>().catch(() => ({} as Record<string, string>));
+  if (!c.env.MIDTRANS_SERVER_KEY || !(await verifyMidtransSignature(body, c.env.MIDTRANS_SERVER_KEY))) {
+    return c.json({ error: 'invalid signature' }, 401);
+  }
+  const o = await c.env.DB.prepare("SELECT * FROM orders WHERE id = ? AND provider = 'midtrans'").bind(body.order_id).first<OrderRow>();
+  if (o) await refreshOrder(c.env, o, (p) => c.executionCtx.waitUntil(p));
+  return c.json({ ok: true }); // 200 so Midtrans stops retrying
 });
 
 // Mayar calls this on payment events. The body is not trusted: we re-check recent pending orders with the API.

@@ -105,8 +105,8 @@ export function Admin() {
                 <h2>{test.content.title}</h2>
                 <p className="lead">{test.content.subtitle}</p>
                 <p>{test.content.intro}</p>
-                {test.content.sections.map((s) => (
-                  <section key={s.heading}><h3 style={{ marginTop: 18 }}>{s.heading}</h3>{s.paragraphs.map((p, i) => <p key={i}>{p}</p>)}{s.bullets && <ul>{s.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}</section>
+                {test.content.sections.map((s, si) => (
+                  <section key={si}>{s.heading && <h3 style={{ marginTop: 18 }}>{s.heading}</h3>}{s.paragraphs.map((p, i) => <p key={i}>{p}</p>)}{s.bullets && <ul>{s.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}</section>
                 ))}
                 <p><em>{test.content.closing}</em></p>
               </div>

@@ -1,0 +1,58 @@
+name: QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      check_ai:
+        description: 'Also generate one real AI report on the live site (costs ~Rp1.000)'
+        type: boolean
+        default: false
+
+jobs:
+  tests:
+    name: Typecheck, unit and end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  smoke:
+    name: Smoke test the live site after Cloudflare deploys
+    if: github.ref == 'refs/heads/main'
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for Cloudflare to finish deploying
+        run: sleep 150
+      - run: node tests/smoke/smoke.mjs
+        env:
+          SMOKE_URL: ${{ vars.SMOKE_URL || 'https://laporan-funnel.psatyadarma2.workers.dev' }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          CHECK_AI: ${{ inputs.check_ai && '1' || '' }}

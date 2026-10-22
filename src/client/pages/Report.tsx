@@ -82,9 +82,9 @@ export function Report() {
       </div>
       <button className="link-btn no-print" onClick={copyLink}>{copied ? '✓ Link tersalin' : 'Salin link laporan ini (simpan agar bisa dibuka lagi)'}</button>
       <p className="lead" style={{ marginTop: 18 }}>{content.intro}</p>
-      {content.sections.map((s) => (
-        <section key={s.heading}>
-          <h2>{s.heading}</h2>
+      {content.sections.map((s, si) => (
+        <section key={si}>
+          {s.heading && <h2>{s.heading}</h2>}
           {s.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
           {s.bullets && s.bullets.length > 0 && <ul>{s.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
         </section>

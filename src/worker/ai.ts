@@ -4,14 +4,14 @@ import type { ReportContent, ReportSection } from '../shared/types';
 type AiReport = Omit<ReportContent, 'disclaimer' | 'generatedBy'>;
 
 /** Calls an OpenAI-compatible chat completions endpoint and parses the JSON report. */
-export async function generateAiReport(env: Env, prompt: { system: string; user: string }): Promise<AiReport> {
+export async function generateAiReport(env: Env, prompt: { system: string; user: string }, minSections = 3): Promise<AiReport> {
   const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.AI_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: env.AI_MODEL,
       temperature: 0.7,
-      max_tokens: 6000,
+      max_tokens: 12000,
       messages: [
         { role: 'system', content: `${prompt.system}\n\n${FORMAT_INSTRUCTIONS}` },
         { role: 'user', content: prompt.user },
@@ -19,9 +19,11 @@ export async function generateAiReport(env: Env, prompt: { system: string; user:
     }),
   });
   if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = json.choices?.[0]?.message?.content ?? '';
-  return parseReport(text);
+  const json = (await res.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
+  const choice = json.choices?.[0];
+  // A report cut off by the length limit must never reach a buyer.
+  if (choice?.finish_reason === 'length') throw new Error('AI report was cut off (hit max_tokens)');
+  return parseReport(choice?.message?.content ?? '', { minSections, requireClosing: true });
 }
 
 /**
@@ -43,10 +45,24 @@ PEMBUKA: <satu paragraf pembuka>
 ## Penutup
 <satu paragraf penutup>`;
 
-const clean = (t: string) => t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').trim();
+/** Removes markdown emphasis the model sometimes adds (**bold**, *italic*, __bold__, _italic_). */
+export const clean = (t: string) =>
+  t
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/(^|[\s(\[])\*(\S(?:[^*]*?\S)?)\*(?=[\s)\].,:;!?]|$)/g, '$1$2')
+    .replace(/(^|[\s(\[])_(\S(?:[^_]*?\S)?)_(?=[\s)\].,:;!?]|$)/g, '$1$2')
+    .trim();
+
+export interface ParseOptions {
+  /** Minimum number of headed body sections (excluding Penutup). */
+  minSections?: number;
+  /** Fail if there is no "## Penutup" section (a sign the text was cut off). */
+  requireClosing?: boolean;
+}
 
 /** Parses the plain-text report (or legacy JSON). Throws if it's too thin to sell. */
-export function parseReport(text: string): AiReport {
+export function parseReport(text: string, opts: ParseOptions = {}): AiReport {
   const trimmed = text.trim().replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
   if (trimmed.startsWith('{')) return parseJsonReport(trimmed);
 
@@ -60,6 +76,11 @@ export function parseReport(text: string): AiReport {
     const p = clean(para.join(' '));
     para = [];
     if (!p) return;
+    if (current && current.bullets?.length) {
+      // Paragraph after a bullet list: continue in a new untitled block so the order is kept.
+      current = { heading: '', paragraphs: [], bullets: [] };
+      sections.push(current);
+    }
     if (current) current.paragraphs.push(p);
     else if (inIntro || !intro) intro = intro ? `${intro} ${p}` : p;
   };
@@ -91,15 +112,19 @@ export function parseReport(text: string): AiReport {
 
   // The last "Penutup" section becomes the closing.
   let closing = '';
-  const last = sections[sections.length - 1];
-  if (last && /penutup|closing|kata akhir/i.test(last.heading)) {
-    closing = [...last.paragraphs, ...(last.bullets ?? [])].join(' ');
-    sections.pop();
+  let lastHeaded = -1;
+  for (let i = sections.length - 1; i >= 0; i--) if (sections[i].heading) { lastHeaded = i; break; }
+  if (lastHeaded >= 0 && /penutup|closing|kata akhir/i.test(sections[lastHeaded].heading)) {
+    const tail = sections.splice(lastHeaded);
+    closing = tail.flatMap((s) => [...s.paragraphs, ...(s.bullets ?? [])]).join(' ');
   }
   for (const s of sections) if (!s.bullets?.length) delete s.bullets;
   const body = sections.filter((s) => s.paragraphs.length || s.bullets?.length);
+  const headed = body.filter((s) => s.heading).length;
   if (!title) throw new Error('AI report missing title');
-  if (body.length < 3) throw new Error(`AI report has too few sections (${body.length})`);
+  if (opts.requireClosing && !closing) throw new Error('AI report has no Penutup section (probably cut off)');
+  const min = opts.minSections ?? 3;
+  if (headed < min) throw new Error(`AI report has too few sections (${headed} of ${min})`);
   return {
     title,
     subtitle: subtitle || body[0].paragraphs[0]?.split('. ')[0] || title,

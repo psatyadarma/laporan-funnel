@@ -325,6 +325,9 @@ function primaryPath(answers: Answers): 'job' | 'side' | 'business' {
 }
 
 const PATH_LABEL = { job: 'Naik level di karier', side: 'Sampingan', business: 'Usaha sendiri' };
+const STATUS_LABEL: Record<string, string> = { student: 'masih kuliah atau sekolah', employee: 'bekerja sebagai karyawan', freelance: 'bekerja sebagai freelancer', owner: 'sudah punya usaha sendiri', seeking: 'sedang mencari kerja' };
+const CAPITAL_LABEL: Record<string, string> = { lt1: 'di bawah Rp1 juta', '1to10': 'Rp1–10 juta', '10to50': 'Rp10–50 juta', gt50: 'di atas Rp50 juta' };
+const HOURS_LABEL: Record<string, string> = { lt5: 'kurang dari 5 jam', '5to10': '5–10 jam', '10to20': '10–20 jam', gt20: 'lebih dari 20 jam' };
 
 function preview(r: ScoreResult, a: Answers) {
   const p = P[r.profileId];
@@ -347,6 +350,13 @@ function templateReport(r: ScoreResult, a: Answers): ReportContent {
   const lead = primaryPath(a);
   const order = [lead, ...(['job', 'side', 'business'] as const).filter((x) => x !== lead)];
   const sections: ReportContent['sections'] = [
+    {
+      heading: 'Profilmu',
+      paragraphs: [
+        `Profilmu adalah ${p.name}. ${p.tagline}`,
+        `Saat ini kamu ${STATUS_LABEL[a.status] ?? 'sedang menata langkah'}, dengan modal ${CAPITAL_LABEL[a.capital] ?? 'terbatas'} dan waktu luang ${HOURS_LABEL[a.hours] ?? 'yang terbatas'} per minggu. Semua saran di bawah disesuaikan dengan kondisi itu.`,
+      ],
+    },
     { heading: 'Kekuatan utamamu', paragraphs: ['Ini modal yang paling sering membuka pintu rezeki untuk profilmu.'], bullets: p.strengths },
     { heading: 'Titik buta yang perlu dijaga', paragraphs: ['Bukan kelemahan permanen, hanya kebiasaan yang perlu diwaspadai.'], bullets: p.blindSpots },
     {
@@ -402,6 +412,10 @@ Aturan:
 - Jangan menjanjikan penghasilan, kekayaan, atau nasib. Jangan menyebut angka penghasilan pasti.
 - Spesifik pada situasi orang ini (status, modal, waktu luang). Hindari kalimat umum yang cocok untuk semua orang.
 - Jika ada data weton, tulis bagian weton sebagai pengetahuan budaya Jawa ("menurut tradisi primbon..."), bukan ramalan, dan kaitkan dengan refleksi diri.
+- JANGAN menyebut skor, angka skor, huruf kode (R, I, A, S, E, C) atau istilah RIASEC di laporan. Terjemahkan jadi bahasa sehari-hari ("kamu paling bersemangat saat mencipta").
+- Skenario di kuis (uang Rp5 juta tak terduga, rugi Rp2 juta, uang dingin Rp10 juta) adalah gambaran preferensi, bukan kejadian nyata. Jangan menulisnya seolah benar terjadi.
+- Tanpa huruf tebal atau miring. Pakai hanya "## " untuk judul bagian dan "- " untuk poin.
+- Tulis SEMUA bagian sampai "## Penutup". Lebih baik ringkas daripada terpotong.
 - Ikuti FORMAT JAWABAN di bawah dengan tepat.`;
   const user = `Profil: ${p.name}: ${p.tagline}
 Skor minat (0-1): ${JSON.stringify(r.scores)}
@@ -416,7 +430,7 @@ Nama panggilan: ${a.name?.trim() || '(tidak diisi)'}
 Jawaban kuis:
 ${answered}
 
-Tulis laporan 1.500–2.000 kata dengan bagian (heading) berurutan:
+Tulis laporan 1.200–1.600 kata dengan bagian (heading) berurutan, lalu akhiri dengan "## Penutup":
 1. Profilmu (siapa dia, dengan contoh dari jawabannya)
 2. Kekuatan utamamu
 3. Titik buta yang perlu dijaga
@@ -427,6 +441,11 @@ Tulis laporan 1.500–2.000 kata dengan bagian (heading) berurutan:
 8. Rencana 90 hari (per bulan, tindakan konkret)
 ${r.facts.weton ? '9. Wetonmu dalam tradisi Jawa' : ''}`;
   return { system, user };
+}
+
+/** Required body sections (excluding Penutup): 8, plus the weton section when present. */
+function reportMinSections(r: ScoreResult) {
+  return r.facts.weton ? 9 : 8;
 }
 
 export const petaRezeki: BetConfig = {
@@ -460,7 +479,7 @@ export const petaRezeki: BetConfig = {
   },
   analyzingLines: ['Membaca pola minatmu…', 'Mencocokkan dengan 12 profil rezeki…', 'Menyesuaikan dengan modal & waktumu…'],
   disclaimer: DISCLAIMER,
-  score, preview, templateReport, reportPrompt,
+  score, preview, templateReport, reportPrompt, reportMinSections,
 };
 
 export const _internal = { P, primaryPath };

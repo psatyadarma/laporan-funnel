@@ -238,7 +238,7 @@ async function buildReport(env: Env, orderId: string) {
   let content: ReportContent;
   if (env.AI_API_KEY && row.attempts < MAX_AI_ATTEMPTS) {
     try {
-      const ai = await generateAiReport(env, bet.reportPrompt(result, answers));
+      const ai = await generateAiReport(env, bet.reportPrompt(result, answers), bet.reportMinSections?.(result));
       content = { ...ai, disclaimer: bet.disclaimer, generatedBy: 'ai' };
     } catch (err) {
       console.error('AI report failed', err);
@@ -353,7 +353,7 @@ app.post('/api/admin/test-report', async (c) => {
   const result = bet.score(answers, s.variant ?? undefined);
   const started = now();
   try {
-    const ai = await generateAiReport(c.env, bet.reportPrompt(result, answers));
+    const ai = await generateAiReport(c.env, bet.reportPrompt(result, answers), bet.reportMinSections?.(result));
     return c.json({ model: c.env.AI_MODEL, ms: now() - started, profile: result.profileId, content: { ...ai, disclaimer: bet.disclaimer, generatedBy: 'ai' } });
   } catch (err) {
     return c.json({ error: String(err).slice(0, 500) }, 502);

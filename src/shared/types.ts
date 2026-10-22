@@ -113,9 +113,11 @@ export interface BetConfig extends PublicBetConfig {
   templateReport(result: ScoreResult, answers: Answers): ReportContent;
   /** Prompt for AI report generation. Must ask for JSON matching ReportContent (minus generatedBy/disclaimer). */
   reportPrompt(result: ScoreResult, answers: Answers): { system: string; user: string };
+  /** Minimum number of body sections an AI report must have, or it's rejected as incomplete (default 3). */
+  reportMinSections?(result: ScoreResult): number;
 }
 
 export function toPublic(b: BetConfig): PublicBetConfig {
-  const { score: _s, preview: _p, templateReport: _t, reportPrompt: _r, ...pub } = b;
+  const { score: _s, preview: _p, templateReport: _t, reportPrompt: _r, reportMinSections: _m, ...pub } = b;
   return pub;
 }

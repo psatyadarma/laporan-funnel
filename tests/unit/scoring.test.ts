@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { weton } from '../src/shared/scoring';
-import { petaRezeki, _internal } from '../src/bets/peta-rezeki';
-import { parseReport } from '../src/worker/ai';
-import { normalizeMobile } from '../src/worker/payments';
-import type { Answers } from '../src/shared/types';
+import { weton } from '../../src/shared/scoring';
+import { petaRezeki, _internal } from '../../src/bets/peta-rezeki';
+import { parseReport } from '../../src/worker/ai';
+import { normalizeMobile } from '../../src/worker/payments';
+import type { Answers } from '../../src/shared/types';
 
 const base: Answers = { status: 'employee', m1: 'a', m2: 'a', m3: 'a', m4: 'a', capital: '1to10', hours: '5to10' };
 const allOption = (id: string): Answers => Object.fromEntries(['q1','q2','q3','q4','q5','q6','q7','q8','q9','q10'].map((q) => [q, id]));
@@ -135,7 +135,7 @@ describe('weton after maghrib', () => {
   });
 });
 
-import { midtransStatus, verifyMidtransSignature } from '../src/worker/payments';
+import { midtransStatus, verifyMidtransSignature } from '../../src/worker/payments';
 import { createHash } from 'node:crypto';
 
 describe('midtrans', () => {

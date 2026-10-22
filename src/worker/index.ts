@@ -178,7 +178,8 @@ async function markPaid(env: Env, o: OrderRow, waitUntil: (p: Promise<unknown>) 
     const s = await env.DB.prepare('SELECT variant FROM sessions WHERE id = ?').bind(o.session_id).first<{ variant: string | null }>();
     await env.DB.prepare("INSERT OR IGNORE INTO reports (order_id, status, attempts, updated_at) VALUES (?, 'pending', 0, ?)").bind(o.id, paidAt).run();
     await logEvent(env, { bet: o.bet, variant: s?.variant, name: 'purchase', sessionId: o.session_id, value: o.amount });
-    waitUntil(buildReport(env, o.id));
+    // The report is written when the buyer opens the report page (see /api/reports), not here:
+    // background work (waitUntil) is cut off ~30s after the response, and AI reports take longer.
     waitUntil(sendCapi(env, paid));
   }
   return paid;
@@ -193,12 +194,23 @@ async function sendCapi(env: Env, o: OrderRow) {
 }
 
 const MAX_AI_ATTEMPTS = 3;
+const LOCK_MS = 3 * 60 * 1000; // a generation that hasn't finished in 3 minutes is considered dead
 
+/**
+ * Writes the report for a paid order. Only one generation runs per order at a time:
+ * the row is locked by setting status = 'generating'. Call it with await, inside a request
+ * or the cron handler, never in waitUntil.
+ */
 async function buildReport(env: Env, orderId: string) {
-  const row = await env.DB.prepare(`SELECT r.status, r.attempts, s.bet, s.variant, s.answers_json
+  const t = now();
+  const lock = await env.DB.prepare(`UPDATE reports SET status = 'generating', updated_at = ?
+    WHERE order_id = ? AND (status IN ('pending', 'failed') OR (status = 'generating' AND updated_at < ?))`)
+    .bind(t, orderId, t - LOCK_MS).run();
+  if (lock.meta.changes === 0) return; // ready, or another request is writing it
+  const row = await env.DB.prepare(`SELECT r.attempts, s.bet, s.variant, s.answers_json
     FROM reports r JOIN orders o ON o.id = r.order_id JOIN sessions s ON s.id = o.session_id WHERE r.order_id = ?`)
-    .bind(orderId).first<{ status: string; attempts: number; bet: string; variant: string | null; answers_json: string }>();
-  if (!row || row.status === 'ready') return;
+    .bind(orderId).first<{ attempts: number; bet: string; variant: string | null; answers_json: string }>();
+  if (!row) return;
   const bet = getBet(row.bet)!;
   const answers = JSON.parse(row.answers_json) as Answers;
   const result = bet.score(answers, row.variant ?? undefined);
@@ -208,15 +220,16 @@ async function buildReport(env: Env, orderId: string) {
       const ai = await generateAiReport(env, bet.reportPrompt(result, answers));
       content = { ...ai, disclaimer: bet.disclaimer, generatedBy: 'ai' };
     } catch (err) {
+      console.error('AI report failed', err);
       await env.DB.prepare("UPDATE reports SET attempts = attempts + 1, status = 'failed', error = ?, updated_at = ? WHERE order_id = ?")
         .bind(String(err).slice(0, 500), now(), orderId).run();
-      if (row.attempts + 1 < MAX_AI_ATTEMPTS) return; // cron retries
+      if (row.attempts + 1 < MAX_AI_ATTEMPTS) return; // next poll or cron retries
       content = bet.templateReport(result, answers); // give up on AI, customer still gets a report
     }
   } else {
     content = bet.templateReport(result, answers);
   }
-  await env.DB.prepare("UPDATE reports SET status = 'ready', content_json = ?, updated_at = ? WHERE order_id = ?")
+  await env.DB.prepare("UPDATE reports SET status = 'ready', content_json = ?, error = NULL, updated_at = ? WHERE order_id = ?")
     .bind(JSON.stringify(content), now(), orderId).run();
 }
 
@@ -261,11 +274,12 @@ app.get('/api/reports/:token', async (c) => {
   const o = await c.env.DB.prepare("SELECT id, bet FROM orders WHERE report_token = ? AND status = 'paid'").bind(c.req.param('token')).first<{ id: string; bet: string }>();
   if (!o) return c.json({ error: 'not found' }, 404);
   const r = await c.env.DB.prepare('SELECT status, content_json FROM reports WHERE order_id = ?').bind(o.id).first<{ status: string; content_json: string | null }>();
-  if (r?.status !== 'ready') {
-    c.executionCtx.waitUntil(buildReport(c.env, o.id));
-    return c.json({ bet: o.bet, status: 'pending' });
-  }
-  return c.json({ bet: o.bet, status: 'ready', content: JSON.parse(r.content_json!) });
+  if (r?.status === 'ready') return c.json({ bet: o.bet, status: 'ready', content: JSON.parse(r.content_json!) });
+  // Write it now, inside this request (the browser waits). The lock makes concurrent polls return 'pending'.
+  await buildReport(c.env, o.id);
+  const after = await c.env.DB.prepare('SELECT status, content_json FROM reports WHERE order_id = ?').bind(o.id).first<{ status: string; content_json: string | null }>();
+  if (after?.status === 'ready') return c.json({ bet: o.bet, status: 'ready', content: JSON.parse(after.content_json!) });
+  return c.json({ bet: o.bet, status: 'pending' });
 });
 
 // ---------- Admin funnel stats ----------
@@ -324,8 +338,9 @@ export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const wait = (p: Promise<unknown>) => ctx.waitUntil(p);
     await recheckPending(env, wait, 50);
-    const { results: stuck } = await env.DB.prepare("SELECT order_id FROM reports WHERE status != 'ready' LIMIT 20").all<{ order_id: string }>();
-    for (const r of stuck) wait(buildReport(env, r.order_id));
+    // Reports nobody opened yet (buyer closed the tab): write them here, one at a time.
+    const { results: stuck } = await env.DB.prepare("SELECT order_id FROM reports WHERE status != 'ready' ORDER BY updated_at LIMIT 5").all<{ order_id: string }>();
+    for (const r of stuck) await buildReport(env, r.order_id);
     const { results: noCapi } = await env.DB.prepare("SELECT * FROM orders WHERE status = 'paid' AND capi_sent = 0 AND paid_at > ? LIMIT 20")
       .bind(now() - 6 * 86_400_000).all<OrderRow>();
     for (const o of noCapi) wait(sendCapi(env, o));

@@ -287,6 +287,27 @@ app.get('/api/admin/stats', async (c) => {
   return c.json({ days, bets: Object.keys(BETS), events: ev, waitlist: wl, reports });
 });
 
+// Generates an AI report for a completed quiz session without payment, so you can check quality. Not stored.
+app.post('/api/admin/test-report', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'unauthorized' }, 401);
+  const b = await c.req.json<{ sessionId?: string }>().catch(() => ({} as { sessionId?: string }));
+  const s = b.sessionId
+    ? await c.env.DB.prepare('SELECT bet, variant, answers_json FROM sessions WHERE id = ? AND answers_json IS NOT NULL').bind(b.sessionId).first<{ bet: string; variant: string | null; answers_json: string }>()
+    : await c.env.DB.prepare('SELECT bet, variant, answers_json FROM sessions WHERE answers_json IS NOT NULL ORDER BY created_at DESC LIMIT 1').first<{ bet: string; variant: string | null; answers_json: string }>();
+  if (!s) return c.json({ error: 'No completed quiz yet. Finish the quiz once first.' }, 404);
+  if (!c.env.AI_API_KEY) return c.json({ error: 'AI_API_KEY is not set' }, 400);
+  const bet = getBet(s.bet)!;
+  const answers = JSON.parse(s.answers_json) as Answers;
+  const result = bet.score(answers, s.variant ?? undefined);
+  const started = now();
+  try {
+    const ai = await generateAiReport(c.env, bet.reportPrompt(result, answers));
+    return c.json({ model: c.env.AI_MODEL, ms: now() - started, profile: result.profileId, content: { ...ai, disclaimer: bet.disclaimer, generatedBy: 'ai' } });
+  } catch (err) {
+    return c.json({ error: String(err).slice(0, 500) }, 502);
+  }
+});
+
 app.get('/api/admin/waitlist', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'unauthorized' }, 401);
   const { results } = await c.env.DB.prepare('SELECT bet, variant, contact, created_at FROM waitlist ORDER BY created_at DESC LIMIT 5000').all();

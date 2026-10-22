@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, rupiah, store } from '../api';
+import type { ReportContent } from '../../shared/types';
 
 interface Row { bet: string; variant: string; name: string; n: number; uniq: number; value: number }
 interface Stats { days: number; bets: string[]; events: Row[]; waitlist: { bet: string; n: number }[]; reports: { status: string; n: number }[] }
@@ -16,6 +17,7 @@ export function Admin() {
   const [days, setDays] = useState(14);
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState('');
+  const [test, setTest] = useState<{ busy?: boolean; error?: string; info?: string; content?: ReportContent }>({});
 
   async function load(k = key) {
     setError('');
@@ -71,6 +73,30 @@ export function Admin() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="card" style={{ marginTop: 16 }}>
+            <h3>Test AI report</h3>
+            <p className="small muted">Writes an AI report for the most recent completed quiz, without payment. Nothing is saved. Takes up to a minute.</p>
+            <button className="btn btn-ghost" disabled={test.busy} onClick={async () => {
+              setTest({ busy: true });
+              try {
+                const r = await api<{ model: string; ms: number; profile: string; content: ReportContent }>(`/api/admin/test-report?key=${encodeURIComponent(key)}`, {});
+                setTest({ content: r.content, info: `${r.model} · ${Math.round(r.ms / 1000)}s · profile ${r.profile}` });
+              } catch (e) { setTest({ error: (e as Error).message }); }
+            }}>{test.busy ? 'Writing report…' : 'Generate test report'}</button>
+            {test.error && <div className="error">{test.error}</div>}
+            {test.content && (
+              <div className="report" style={{ marginTop: 16 }}>
+                <p className="small muted">{test.info}</p>
+                <h2>{test.content.title}</h2>
+                <p className="lead">{test.content.subtitle}</p>
+                <p>{test.content.intro}</p>
+                {test.content.sections.map((s) => (
+                  <section key={s.heading}><h3 style={{ marginTop: 18 }}>{s.heading}</h3>{s.paragraphs.map((p, i) => <p key={i}>{p}</p>)}{s.bullets && <ul>{s.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}</section>
+                ))}
+                <p><em>{test.content.closing}</em></p>
+              </div>
+            )}
           </div>
           <p className="small muted" style={{ marginTop: 12 }}>
             Counts are unique visitors (paid = orders). Reports: {stats.reports.map((r) => `${r.status} ${r.n}`).join(', ') || 'none'}.

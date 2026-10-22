@@ -24,8 +24,8 @@ test.describe('waitlist bets', () => {
 test.describe('admin', () => {
   test('wrong password shows a clear error; right password shows stats and drop-off', async ({ page, request }) => {
     // seed one quiz start + answer so the funnel and drop-off tables have data even on a fresh database
-    await request.post('/api/sessions', { data: { bet: 'peta-rezeki', variant: '1', visitorId: 'admin-seed' } });
-    await request.post('/api/events', { data: { bet: 'peta-rezeki', variant: '1', name: 'quiz_q', value: 1, visitorId: 'admin-seed' } });
+    await request.post('/api/sessions', { data: { bet: 'peta-rezeki', variant: '1', visitorId: 'e2e-admin-seed' } });
+    await request.post('/api/events', { data: { bet: 'peta-rezeki', variant: '1', name: 'quiz_q', value: 1, visitorId: 'e2e-admin-seed' } });
     await page.goto('/admin');
     await page.locator('input[type=password]').fill('wrong');
     await page.getByRole('button', { name: 'Load' }).click();
@@ -35,6 +35,22 @@ test.describe('admin', () => {
     await expect(page.getByText('Paywall→paid %')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Quiz drop-off by question' })).toBeVisible();
     await expect(page.getByRole('row', { name: /peta-rezeki/ }).first()).toBeVisible();
+  });
+});
+
+test.describe('automated test traffic', () => {
+  test('visits tagged as test traffic do not count in funnel stats', async ({ request }) => {
+    const landerViews = async () => {
+      const st = await (await request.get(`/api/admin/stats?key=${ADMIN_KEY}&days=1`)).json();
+      return st.events.filter((e: { bet: string; name: string; uniq: number }) => e.bet === 'pilih-jurusan' && e.name === 'lp_view').reduce((n: number, e: { uniq: number }) => n + e.uniq, 0);
+    };
+    const before = await landerViews();
+    for (const id of ['test-smoke', 'test-bot-1', 'smoke-test']) {
+      await request.post('/api/events', { data: { bet: 'pilih-jurusan', name: 'lp_view', variant: '9', visitorId: id } });
+    }
+    expect(await landerViews()).toBe(before);
+    await request.post('/api/events', { data: { bet: 'pilih-jurusan', name: 'lp_view', variant: '9', visitorId: 'real-visitor-1' } });
+    expect(await landerViews()).toBe(before + 1);
   });
 });
 

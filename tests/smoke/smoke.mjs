@@ -46,11 +46,11 @@ await check('mock payments are disabled in production', async () => {
 });
 await check('quiz session can start and score', async () => {
   const cfg = json((await get('/api/bets/peta-rezeki')).text);
-  const s = json((await get('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bet: 'peta-rezeki', variant: '1', utm: { utm_source: 'smoke' }, visitorId: 'smoke-test' }) })).text);
+  const s = json((await get('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bet: 'peta-rezeki', variant: '1', utm: { utm_source: 'smoke' }, visitorId: 'test-smoke' }) })).text);
   assert(s.id, 'no session id');
   const answers = {};
   for (const q of cfg.questions) if (!q.onlyForVariants) answers[q.id] = q.kind === 'choice' ? q.options[0].id : q.kind === 'date' ? '1995-03-10' : 'Smoke';
-  const done = json((await get(`/api/sessions/${s.id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers, visitorId: 'smoke-test' }) })).text);
+  const done = json((await get(`/api/sessions/${s.id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers, visitorId: 'test-smoke' }) })).text);
   assert(done.preview?.title, `no preview: ${JSON.stringify(done).slice(0, 120)}`);
 });
 if (process.env.CHECK_AI && process.env.ADMIN_KEY) {

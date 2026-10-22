@@ -17,6 +17,8 @@ const EVENT_NAMES = new Set([
 ]);
 
 const now = () => Date.now();
+/** Automated test traffic (smoke tests, seeds) uses visitor ids starting with "test-"; stats ignore it. */
+const REAL_TRAFFIC = "COALESCE(visitor_id, '') NOT LIKE 'test-%' AND COALESCE(visitor_id, '') NOT IN ('smoke-test', 'admin-seed')";
 function randomId(bytes = 12): string {
   const b = crypto.getRandomValues(new Uint8Array(bytes));
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -327,14 +329,14 @@ app.get('/api/admin/stats', async (c) => {
   const since = now() - days * 86_400_000;
   const { results: ev } = await c.env.DB.prepare(`SELECT bet, COALESCE(variant, '-') AS variant, name,
       COUNT(*) AS n, COUNT(DISTINCT COALESCE(visitor_id, session_id)) AS uniq, COALESCE(SUM(value), 0) AS value
-    FROM events WHERE created_at > ? AND name != 'quiz_q' GROUP BY bet, variant, name`).bind(since).all<{ bet: string; variant: string; name: string; n: number; uniq: number; value: number }>();
+    FROM events WHERE created_at > ? AND name != 'quiz_q' AND ${REAL_TRAFFIC} GROUP BY bet, variant, name`).bind(since).all<{ bet: string; variant: string; name: string; n: number; uniq: number; value: number }>();
   const { results: wl } = await c.env.DB.prepare('SELECT bet, COUNT(*) AS n FROM waitlist WHERE created_at > ? GROUP BY bet').bind(since).all<{ bet: string; n: number }>();
   const { results: reports } = await c.env.DB.prepare(`SELECT r.status, COUNT(*) AS n FROM reports r JOIN orders o ON o.id = r.order_id WHERE o.paid_at > ? GROUP BY r.status`)
     .bind(since).all<{ status: string; n: number }>();
   // How many people answered each question, to see where they quit.
   const { results: questions } = await c.env.DB.prepare(`SELECT bet, COALESCE(variant, '-') AS variant, value AS q,
       COUNT(DISTINCT COALESCE(visitor_id, session_id)) AS uniq
-    FROM events WHERE created_at > ? AND name = 'quiz_q' GROUP BY bet, variant, value ORDER BY bet, variant, value`)
+    FROM events WHERE created_at > ? AND name = 'quiz_q' AND ${REAL_TRAFFIC} GROUP BY bet, variant, value ORDER BY bet, variant, value`)
     .bind(since).all<{ bet: string; variant: string; q: number; uniq: number }>();
   return c.json({ days, bets: Object.keys(BETS), events: ev, waitlist: wl, reports, questions });
 });
@@ -345,7 +347,7 @@ app.post('/api/admin/test-report', async (c) => {
   const b = await c.req.json<{ sessionId?: string }>().catch(() => ({} as { sessionId?: string }));
   const s = b.sessionId
     ? await c.env.DB.prepare('SELECT bet, variant, answers_json FROM sessions WHERE id = ? AND answers_json IS NOT NULL').bind(b.sessionId).first<{ bet: string; variant: string | null; answers_json: string }>()
-    : await c.env.DB.prepare('SELECT bet, variant, answers_json FROM sessions WHERE answers_json IS NOT NULL ORDER BY created_at DESC LIMIT 1').first<{ bet: string; variant: string | null; answers_json: string }>();
+    : await c.env.DB.prepare(`SELECT bet, variant, answers_json FROM sessions WHERE answers_json IS NOT NULL AND COALESCE(utm_json, '') NOT LIKE '%"utm_source":"smoke"%' ORDER BY created_at DESC LIMIT 1`).first<{ bet: string; variant: string | null; answers_json: string }>();
   if (!s) return c.json({ error: 'No completed quiz yet. Finish the quiz once first.' }, 404);
   if (!c.env.AI_API_KEY) return c.json({ error: 'AI_API_KEY is not set' }, 400);
   const bet = getBet(s.bet)!;

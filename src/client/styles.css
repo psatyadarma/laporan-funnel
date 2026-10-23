@@ -81,6 +81,14 @@ p { line-height: 1.6; margin: 0 0 12px; }
 .report ul { padding-left: 20px; line-height: 1.6; }
 .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
 
+/* legal */
+.legal-footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; text-align: center; color: var(--muted); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.legal-footer a { color: var(--muted); }
+.legal-footer > div { flex-basis: 100%; }
+.legal h2 { font-size: 19px; margin-top: 26px; }
+.legal ul { padding-left: 20px; line-height: 1.6; }
+.legal li { margin-bottom: 6px; }
+
 /* admin */
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }

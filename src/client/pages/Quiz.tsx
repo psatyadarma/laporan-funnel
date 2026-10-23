@@ -4,6 +4,7 @@ import type { Answers } from '../../shared/types';
 import { askedFor } from '../../shared/types';
 import { api, pixel, track, useBet, utm, variantFor, visitorId } from '../api';
 import { Brand } from './Lander';
+import { Link } from 'react-router-dom';
 
 export function Quiz() {
   const { bet: slug } = useParams();
@@ -109,7 +110,7 @@ export function Quiz() {
       )}
       {error && <div className="error">{error}</div>}
       <div className="spacer" />
-      {step === 0 && <p className="small muted" style={{ textAlign: 'center' }}>Dengan lanjut, kamu setuju jawabanmu dipakai untuk menyusun laporanmu.</p>}
+      {step === 0 && <p className="small muted" style={{ textAlign: 'center' }}>Dengan lanjut, kamu setuju jawabanmu dipakai untuk menyusun laporanmu sesuai <Link to="/privasi">Kebijakan Privasi</Link>.</p>}
     </div>
   );
 }

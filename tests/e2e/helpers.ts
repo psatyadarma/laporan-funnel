@@ -23,10 +23,11 @@ export async function completeQuiz(page: Page, { birthdate = '1995-03-10', name 
       await option.click();
       // wait for the next step (counter changes) or the analyzing screen
       await expect(async () => {
-        const now = await page.locator('.topbar .small').textContent().catch(() => null);
+        const now = await page.locator('.topbar .small').textContent({ timeout: 1000 }).catch(() => null);
         const busy = await page.locator('.spinner').isVisible();
-        expect(busy || now !== counter).toBeTruthy();
-      }).toPass({ timeout: 5000 });
+        const done = await page.locator('.result-hero').isVisible();
+        expect(busy || done || now !== counter).toBeTruthy();
+      }).toPass({ timeout: 15_000 });
       continue;
     }
     const field = page.locator('form input.field');

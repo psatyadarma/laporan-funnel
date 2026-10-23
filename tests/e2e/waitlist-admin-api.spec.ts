@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { ADMIN_KEY, expectNoHorizontalScroll } from './helpers';
 import { createHash } from 'node:crypto';
 
@@ -18,6 +18,22 @@ test.describe('waitlist bets', () => {
   test('quiz URL of a waitlist bet sends people back to the lander', async ({ page }) => {
     await page.goto('/siap-nikah/quiz');
     await expect(page).toHaveURL(/\/siap-nikah$/);
+  });
+});
+
+test.describe('legal pages', () => {
+  test('privacy and terms load, show the operator and contact, and are linked from landers', async ({ page }) => {
+    await page.goto('/peta-rezeki?h=1');
+    await page.getByRole('link', { name: 'Privasi' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kebijakan Privasi');
+    await expect(page.getByText('Lintang Wiyata').first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'lintangwiyata@gmail.com' }).first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await page.getByRole('link', { name: /Syarat/ }).first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Syarat & Ketentuan');
+    await expect(page.getByText(/Pengembalian dana/)).toBeVisible();
+    await page.goto('/siap-nikah?h=1');
+    await expect(page.getByRole('link', { name: 'Privasi' })).toBeVisible();
   });
 });
 

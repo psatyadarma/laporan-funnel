@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { ReportContent } from '../../shared/types';
 import { api, track, useBet } from '../api';
 import { Brand } from './Lander';
+import { LegalFooter } from './Legal';
 
 export function Report() {
   const { token } = useParams();
@@ -91,6 +92,7 @@ export function Report() {
       ))}
       <div className="card" style={{ marginTop: 24, background: 'var(--soft)' }}><p style={{ margin: 0 }}>{content.closing}</p></div>
       <p className="small muted" style={{ marginTop: 18 }}>{content.disclaimer}</p>
+      <LegalFooter />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Order } from './pages/Order';
 import { Report } from './pages/Report';
 import { MockPay } from './pages/MockPay';
 import { Admin } from './pages/Admin';
+import { Privacy, Terms } from './pages/Legal';
 
 function Home() {
   return (
@@ -31,6 +32,8 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/privasi" element={<Privacy />} />
+        <Route path="/syarat" element={<Terms />} />
         <Route path="/mock-pay/:orderId" element={<MockPay />} />
         <Route path="/r/:token" element={<Report />} />
         <Route path="/:bet" element={<Lander />} />

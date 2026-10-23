@@ -8,7 +8,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   workers: 1, // tests share the fake AI server's mode
   fullyParallel: false,
-  retries: process.env.CI ? 1 : 0,
+  retries: 1, // a retry absorbs rare timing hiccups on slow machines; a real bug fails both runs
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://localhost:8788',

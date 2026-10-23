@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, pixel, track, useBet, utm, variantFor, visitorId } from '../api';
+import { LegalFooter } from './Legal';
 
 export function Brand({ name }: { name: string }) {
   return <div className="brand"><span className="brand-dot" /> {name}</div>;
@@ -68,6 +69,7 @@ export function Lander() {
           <p className="small muted" style={{ margin: 0 }}>{hook.trust ?? bet.trustLine}</p>
         </form>
       )}
+      <LegalFooter />
     </div>
   );
 }

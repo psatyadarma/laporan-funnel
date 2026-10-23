@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { aiCalls, buyWithMockPayment, completeQuiz, expectNoHorizontalScroll, setAiMode } from './helpers';
 
 test.describe('Peta Rezeki purchase flow', () => {

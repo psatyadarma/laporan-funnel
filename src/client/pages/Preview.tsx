@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import type { Preview as PreviewData } from '../../shared/types';
 import { api, fbCookies, pixel, rupiah, store, track, useBet, visitorId } from '../api';
 import { Brand } from './Lander';
+import { Link } from 'react-router-dom';
+import { LegalFooter } from './Legal';
 
 export function Preview() {
   const { bet: slug, sessionId } = useParams();
@@ -100,10 +102,11 @@ export function Preview() {
           <input className="field" placeholder="Nomor WhatsApp" inputMode="tel" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} required autoComplete="tel" />
           <button className="btn" disabled={busy}>{busy ? 'Membuka pembayaran…' : bet.paywall.button}</button>
           {error && <div className="error">{error}</div>}
-          <p className="small muted" style={{ margin: 0 }}>{bet.paywall.guarantee}</p>
+          <p className="small muted" style={{ margin: 0 }}>{bet.paywall.guarantee} Dengan membayar, kamu menyetujui <Link to="/syarat">Syarat &amp; Ketentuan</Link>.</p>
         </form>
       </div>
       <p className="small muted" style={{ marginTop: 16 }}>{bet.disclaimer}</p>
+      <LegalFooter />
     </div>
   );
 }

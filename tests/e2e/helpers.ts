@@ -6,6 +6,14 @@ export const ADMIN_KEY = 'e2e-admin';
 export async function setAiMode(request: APIRequestContext, mode: 'ok' | 'truncated' | 'noclosing' | 'error' | 'slow') {
   await request.post(`${AI}/__mode`, { data: { mode } });
 }
+export interface Outbox {
+  emails: { auth: string; idempotencyKey?: string; from: string; to: string[]; subject: string; text: string; html: string }[];
+  tiktok: { token: string; event_source_id: string; data: { event: string; event_id: string; user: Record<string, string> }[] }[];
+}
+/** Emails and TikTok server events the app sent to the fake services since the last setAiMode. */
+export async function outbox(request: APIRequestContext): Promise<Outbox> {
+  return (await request.get(`${AI}/__outbox`)).json();
+}
 export async function aiCalls(request: APIRequestContext): Promise<number> {
   return (await (await request.get(`${AI}/__calls`)).json()).calls;
 }

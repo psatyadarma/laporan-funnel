@@ -112,6 +112,7 @@ export function Admin() {
               </div>
             )}
           </div>
+          <TestEmail adminKey={key} />
           <p className="small muted" style={{ marginTop: 12 }}>
             Counts are unique visitors (paid = orders). Reports: {stats.reports.map((r) => `${r.status} ${r.n}`).join(', ') || 'none'}.
             Compare with Meta Ads Manager for CTR and spend. Hook test rule: best hook CTR ≥ 1% and CTA tap ≥ 30%, otherwise kill.
@@ -164,6 +165,31 @@ function QuizDropoff({ stats, configs, groups }: { stats: Stats; configs: Record
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Sends a sample "report ready" email to check the Resend setup. */
+function TestEmail({ adminKey }: { adminKey: string }) {
+  const [to, setTo] = useState('');
+  const [state, setState] = useState<{ busy?: boolean; msg?: string; error?: string }>({});
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>Test email</h3>
+      <p className="small muted">Sends a sample "your report is ready" email. Leave empty to send to the contact email on the legal pages.</p>
+      <form className="stack" onSubmit={async (e) => {
+        e.preventDefault();
+        setState({ busy: true });
+        try {
+          const r = await api<{ to: string }>(`/api/admin/test-email?key=${encodeURIComponent(adminKey)}`, { to: to.trim() || undefined });
+          setState({ msg: `Sent to ${r.to}. Check the inbox and the spam folder.` });
+        } catch (err) { setState({ error: (err as Error).message }); }
+      }}>
+        <input className="field" type="email" placeholder="you@example.com (optional)" value={to} onChange={(e) => setTo(e.target.value)} />
+        <button className="btn btn-ghost" disabled={state.busy}>{state.busy ? 'Sending…' : 'Send test email'}</button>
+      </form>
+      {state.msg && <p className="small" style={{ marginTop: 8 }}>{state.msg}</p>}
+      {state.error && <div className="error">{state.error}</div>}
     </div>
   );
 }

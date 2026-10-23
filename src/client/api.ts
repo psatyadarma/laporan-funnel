@@ -19,14 +19,14 @@ export function visitorId(): string {
   return store('vid') ?? store('vid', randomId()) ?? 'anon';
 }
 
-/** First-touch UTM + fbclid, kept for the session. */
+/** First-touch UTM + ad click ids (fbclid, ttclid), kept for the session. */
 export function utm(): Record<string, string> {
   try {
     const saved = sessionStorage.getItem('utm');
     if (saved) return JSON.parse(saved);
     const p = new URLSearchParams(location.search);
     const out: Record<string, string> = {};
-    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid']) {
+    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'ttclid']) {
       const v = p.get(k);
       if (v) out[k] = v;
     }
@@ -87,9 +87,59 @@ export function initPixel(pixelId?: string) {
   window.fbq('track', 'PageView');
 }
 
+// ---------- TikTok Pixel ----------
+type Ttq = unknown[] & { [k: string]: any };
+declare global { interface Window { ttq?: Ttq; TiktokAnalyticsObject?: string } }
+let tiktokReady = '';
+
+export function initTiktok(pixelId?: string) {
+  if (!pixelId || tiktokReady) return;
+  tiktokReady = pixelId;
+  // TikTok's standard loader, unminified: queue calls until events.js arrives.
+  window.TiktokAnalyticsObject = 'ttq';
+  const ttq = (window.ttq = window.ttq || ([] as unknown as Ttq));
+  ttq.methods = ['page', 'track', 'identify', 'instances', 'debug', 'on', 'off', 'once', 'ready', 'alias', 'group', 'enableCookie', 'disableCookie', 'holdConsent', 'revokeConsent', 'grantConsent'];
+  ttq.setAndDefer = (t: Ttq, e: string) => { t[e] = (...args: unknown[]) => { t.push([e, ...args]); }; };
+  for (const m of ttq.methods) ttq.setAndDefer(ttq, m);
+  ttq.instance = (t: string) => { const e = ttq._i[t] || []; for (const m of ttq.methods) ttq.setAndDefer(e, m); return e; };
+  ttq.load = (e: string, n?: Record<string, unknown>) => {
+    const r = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+    ttq._i = ttq._i || {}; ttq._i[e] = []; ttq._i[e]._u = r;
+    ttq._t = ttq._t || {}; ttq._t[e] = +new Date();
+    ttq._o = ttq._o || {}; ttq._o[e] = n || {};
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = `${r}?sdkid=${e}&lib=ttq`;
+    document.head.appendChild(s);
+  };
+  ttq.load(pixelId);
+  ttq.page();
+}
+
+/** Meta standard event → TikTok standard event. */
+const TIKTOK_EVENTS: Record<string, string> = {
+  ViewContent: 'ViewContent',
+  CompleteRegistration: 'CompleteRegistration',
+  InitiateCheckout: 'InitiateCheckout',
+  Purchase: 'CompletePayment',
+  Lead: 'SubmitForm',
+};
+
+/** Fires a standard event on every configured pixel (Meta + TikTok). eventId deduplicates with server events. */
 export function pixel(event: string, params?: Record<string, unknown>, eventId?: string) {
-  if (!window.fbq || !pixelReady) return;
-  window.fbq('track', event, params ?? {}, eventId ? { eventID: eventId } : undefined);
+  if (window.fbq && pixelReady) window.fbq('track', event, params ?? {}, eventId ? { eventID: eventId } : undefined);
+  const tt = TIKTOK_EVENTS[event];
+  if (window.ttq && tiktokReady && tt) {
+    const p: Record<string, unknown> = { ...(params ?? {}) };
+    if (p.value != null) { p.content_type = 'product'; p.content_id = `${String(p.content_name ?? 'laporan')}-report`; }
+    window.ttq.track(tt, p, eventId ? { event_id: eventId } : undefined);
+  }
+}
+
+/** TikTok click id + cookie, sent with the order so the server-side event matches the ad click. */
+export function ttCookies(): { ttp?: string; ttclid?: string } {
+  const get = (n: string) => document.cookie.split('; ').find((c) => c.startsWith(n + '='))?.split('=')[1];
+  return { ttp: get('_ttp'), ttclid: utm().ttclid };
 }
 
 export function fbCookies(): { fbp?: string; fbc?: string } {
@@ -121,9 +171,9 @@ export function useBet(slug: string | undefined) {
   const [error, setError] = useState('');
   useEffect(() => {
     if (!slug) return;
-    if (cache[slug]) { applyTheme(cache[slug]); initPixel(cache[slug].metaPixelId); setBet(cache[slug]); return; }
+    if (cache[slug]) { applyTheme(cache[slug]); initPixel(cache[slug].metaPixelId); initTiktok(cache[slug].tiktokPixelId); setBet(cache[slug]); return; }
     api<PublicBetConfig>(`/api/bets/${slug}`)
-      .then((b) => { cache[slug] = b; applyTheme(b); initPixel(b.metaPixelId); setBet(b); })
+      .then((b) => { cache[slug] = b; applyTheme(b); initPixel(b.metaPixelId); initTiktok(b.tiktokPixelId); setBet(b); })
       .catch(() => setError('Halaman tidak ditemukan.'));
   }, [slug]);
   return { bet, error };

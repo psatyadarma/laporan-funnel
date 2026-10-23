@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Preview as PreviewData } from '../../shared/types';
-import { api, fbCookies, pixel, rupiah, store, track, useBet, visitorId } from '../api';
+import { api, fbCookies, ttCookies, pixel, rupiah, store, track, useBet, visitorId } from '../api';
 import { Brand } from './Lander';
 import { Link } from 'react-router-dom';
 import { LegalFooter } from './Legal';
@@ -44,10 +44,10 @@ export function Preview() {
     setBusy(true); setError('');
     store('buyer:name', form.name); store('buyer:email', form.email); store('buyer:mobile', form.mobile);
     const eventId = `pur_${sessionId}_${Date.now().toString(36)}`;
-    pixel('InitiateCheckout', { currency: 'IDR', value: bet.price });
+    pixel('InitiateCheckout', { currency: 'IDR', value: bet.price, content_name: bet.slug });
     try {
       const r = await api<{ orderId: string; link: string }>('/api/orders', {
-        sessionId, ...form, eventId, ...fbCookies(), url: location.href, visitorId: visitorId(),
+        sessionId, ...form, eventId, ...fbCookies(), ...ttCookies(), url: location.href, visitorId: visitorId(),
       });
       store(`order:${sessionId}`, r.orderId);
       location.href = r.link;
@@ -98,7 +98,7 @@ export function Preview() {
         </div>
         <form className="stack" onSubmit={pay}>
           <input className="field" placeholder="Nama" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required autoComplete="name" />
-          <input className="field" placeholder="Email (laporan dikirim ke sini)" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoComplete="email" />
+          <input className="field" placeholder={bet.emailDelivery ? 'Email (link laporan dikirim ke sini)' : 'Email'} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoComplete="email" />
           <input className="field" placeholder="Nomor WhatsApp" inputMode="tel" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} required autoComplete="tel" />
           <button className="btn" disabled={busy}>{busy ? 'Membuka pembayaran…' : bet.paywall.button}</button>
           {error && <div className="error">{error}</div>}

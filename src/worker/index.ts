@@ -1,13 +1,16 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from './env';
-import { pixelIdFor } from './env';
+import { pixelIdFor, tiktokPixelIdFor } from './env';
 import { getBet, BETS } from '../bets';
 import { askedFor, toPublic } from '../shared/types';
 import type { Answers, ReportContent } from '../shared/types';
 import { getProvider, verifyMidtransSignature } from './payments';
 import { generateAiReport } from './ai';
 import { sendPurchase } from './capi';
+import { sendTiktokPurchase } from './tiktok';
+import { emailEnabled, sendReportEmail } from './email';
+import { SITE } from '../shared/site';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -47,6 +50,10 @@ app.get('/api/health', (c) => {
       MAYAR_API_KEY: set(c.env.MAYAR_API_KEY),
       META_PIXEL_IDS: set(c.env.META_PIXEL_IDS),
       META_CAPI_TOKEN: set(c.env.META_CAPI_TOKEN),
+      TIKTOK_PIXEL_IDS: set(c.env.TIKTOK_PIXEL_IDS),
+      TIKTOK_EVENTS_TOKEN: set(c.env.TIKTOK_EVENTS_TOKEN),
+      RESEND_API_KEY: set(c.env.RESEND_API_KEY),
+      EMAIL_FROM: c.env.EMAIL_FROM?.trim() || 'missing',
       AI_MODEL: c.env.AI_MODEL,
     },
   });
@@ -56,7 +63,7 @@ app.get('/api/health', (c) => {
 app.get('/api/bets/:slug', (c) => {
   const bet = getBet(c.req.param('slug'));
   if (!bet) return c.json({ error: 'not found' }, 404);
-  return c.json({ ...toPublic(bet), metaPixelId: pixelIdFor(c.env, bet.slug) });
+  return c.json({ ...toPublic(bet), metaPixelId: pixelIdFor(c.env, bet.slug), tiktokPixelId: tiktokPixelIdFor(c.env, bet.slug), emailDelivery: emailEnabled(c.env) });
 });
 
 // ---------- Analytics events ----------
@@ -151,7 +158,10 @@ app.post('/api/orders', async (c) => {
     ua: c.req.header('user-agent')?.slice(0, 300),
     fbp: clip(b.fbp, 100),
     fbc: clip(b.fbc, 200),
+    ttp: clip(b.ttp, 100),
+    ttclid: clip(b.ttclid, 300),
     url: clip(b.url, 300),
+    origin: baseUrl(c),
   });
   let provider;
   try { provider = getProvider(c.env); } catch (err) {
@@ -179,6 +189,7 @@ type OrderRow = {
   id: string; session_id: string; bet: string; amount: number; status: string; provider: string; provider_ref: string | null;
   pay_link: string | null; name: string | null; email: string | null; mobile: string | null; event_id: string; client_json: string | null;
   report_token: string; capi_sent: number; created_at: number; paid_at: number | null;
+  tiktok_sent?: number; email_sent?: number; email_attempts?: number;
 };
 
 /** Confirms status with the provider and, on first payment, kicks off report generation + CAPI. */
@@ -204,6 +215,8 @@ async function markPaid(env: Env, o: OrderRow, waitUntil: (p: Promise<unknown>) 
     // The report is written when the buyer opens the report page (see /api/reports), not here:
     // background work (waitUntil) is cut off ~30s after the response, and AI reports take longer.
     waitUntil(sendCapi(env, paid));
+    waitUntil(sendTiktok(env, paid));
+    waitUntil(deliverEmail(env, paid));
   }
   return paid;
 }
@@ -213,6 +226,44 @@ async function sendCapi(env: Env, o: OrderRow) {
     if (await sendPurchase(env, o)) await env.DB.prepare('UPDATE orders SET capi_sent = 1 WHERE id = ?').bind(o.id).run();
   } catch (err) {
     console.error('CAPI failed', err);
+  }
+}
+
+async function sendTiktok(env: Env, o: OrderRow) {
+  try {
+    if (await sendTiktokPurchase(env, o)) await env.DB.prepare('UPDATE orders SET tiktok_sent = 1 WHERE id = ?').bind(o.id).run();
+  } catch (err) {
+    console.error('TikTok Events API failed', err);
+  }
+}
+
+const MAX_EMAIL_ATTEMPTS = 5;
+
+/** Public link to an order's report, on the domain the buyer used. */
+function reportUrlFor(env: Env, o: OrderRow): string {
+  const client = (o.client_json ? JSON.parse(o.client_json) : {}) as { origin?: string };
+  const origin = (env.PUBLIC_BASE_URL || client.origin || '').replace(/\/$/, '');
+  return `${origin}/r/${o.report_token}`;
+}
+
+/** Emails the buyer their report link once. Safe to call repeatedly (cron retries). */
+async function deliverEmail(env: Env, o: OrderRow) {
+  if (!emailEnabled(env) || !o.email) return;
+  try {
+    // Claim the send first so a webhook + a status poll arriving together send only one email.
+    const claim = await env.DB.prepare('UPDATE orders SET email_sent = 2, email_attempts = email_attempts + 1 WHERE id = ? AND email_sent = 0 AND email_attempts < ?')
+      .bind(o.id, MAX_EMAIL_ATTEMPTS).run();
+    if (claim.meta.changes === 0) return;
+    const bet = getBet(o.bet);
+    try {
+      await sendReportEmail(env, { to: o.email, name: o.name ?? '', brand: bet?.brand ?? SITE.operator, reportUrl: reportUrlFor(env, o) }, `report-${o.id}`);
+      await env.DB.prepare('UPDATE orders SET email_sent = 1 WHERE id = ?').bind(o.id).run();
+    } catch (err) {
+      await env.DB.prepare('UPDATE orders SET email_sent = 0 WHERE id = ?').bind(o.id).run();
+      throw err;
+    }
+  } catch (err) {
+    console.error('report email failed', err);
   }
 }
 
@@ -362,6 +413,21 @@ app.post('/api/admin/test-report', async (c) => {
   }
 });
 
+// Sends a sample report email so the email setup can be checked without buying.
+app.post('/api/admin/test-email', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'unauthorized' }, 401);
+  if (!emailEnabled(c.env)) return c.json({ error: 'RESEND_API_KEY or EMAIL_FROM is not set' }, 400);
+  const b = await c.req.json<{ to?: string }>().catch(() => ({} as { to?: string }));
+  const to = clip(b.to, 120)?.trim() || SITE.contactEmail;
+  if (!/^\S+@\S+\.\S+$/.test(to)) return c.json({ error: 'invalid email' }, 400);
+  try {
+    await sendReportEmail(c.env, { to, name: 'Tes', brand: BETS['peta-rezeki']?.brand ?? SITE.operator, reportUrl: `${baseUrl(c)}/r/contoh` });
+    return c.json({ ok: true, to });
+  } catch (err) {
+    return c.json({ error: String(err).slice(0, 500) }, 502);
+  }
+});
+
 app.get('/api/admin/waitlist', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'unauthorized' }, 401);
   const { results } = await c.env.DB.prepare('SELECT bet, variant, contact, created_at FROM waitlist ORDER BY created_at DESC LIMIT 5000').all();
@@ -384,5 +450,20 @@ export default {
     const { results: noCapi } = await env.DB.prepare("SELECT * FROM orders WHERE status = 'paid' AND capi_sent = 0 AND paid_at > ? LIMIT 20")
       .bind(now() - 6 * 86_400_000).all<OrderRow>();
     for (const o of noCapi) wait(sendCapi(env, o));
+    // Newer columns (migration 0002): kept separate so a missing migration can't break the jobs above.
+    try {
+      const recent = now() - 6 * 86_400_000;
+      const { results: noTiktok } = await env.DB.prepare("SELECT * FROM orders WHERE status = 'paid' AND tiktok_sent = 0 AND paid_at > ? LIMIT 20").bind(recent).all<OrderRow>();
+      for (const o of noTiktok) wait(sendTiktok(env, o));
+      if (emailEnabled(env)) {
+        // email_sent = 2 means "sending"; one stuck for 10+ minutes (worker died mid-send) is retried.
+        await env.DB.prepare("UPDATE orders SET email_sent = 0 WHERE email_sent = 2 AND paid_at < ?").bind(now() - 10 * 60_000).run();
+        const { results: noEmail } = await env.DB.prepare(`SELECT * FROM orders WHERE status = 'paid' AND email_sent = 0 AND email_attempts < ? AND paid_at > ? LIMIT 20`)
+          .bind(MAX_EMAIL_ATTEMPTS, now() - 3 * 86_400_000).all<OrderRow>();
+        for (const o of noEmail) await deliverEmail(env, o);
+      }
+    } catch (err) {
+      console.error('tiktok/email cron failed (migration 0002 applied?)', err);
+    }
   },
 };

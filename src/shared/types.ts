@@ -103,6 +103,9 @@ export interface PublicBetConfig {
   analyzingLines: string[];
   disclaimer: string;
   metaPixelId?: string;
+  tiktokPixelId?: string;
+  /** True when the server emails the report link after payment. */
+  emailDelivery?: boolean;
 }
 
 /** Full bet config, used on the server only. */

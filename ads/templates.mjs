@@ -120,11 +120,11 @@ export function indexHtml(rows) {
   .meta{font-size:13px;line-height:1.45;margin-top:10px;white-space:pre-wrap}
   code{font-size:12px;word-break:break-all}
   </style></head><body>
-  <h1>Ad creatives</h1><p>Feed (4:5), story (9:16) and Reel for each hook. Copy and tracked links are also in <code>ads.csv</code>.</p>
+  <h1>Ad creatives</h1><p>Feed (4:5), story (9:16) and Reel for each hook. Copy and tracked links are also in <code>ads.csv</code> (Meta) and <code>tiktok.csv</code>. Use the Reel for TikTok.</p>
   ${Object.entries(byBet).map(([bet, items]) => `<h2>${esc(bet)}</h2><div class="grid">${items.map((r) => `
     <div class="card"><strong>Hook ${esc(r.hook)}</strong>
       <div class="row"><img src="${r.feed}"><img src="${r.story}">${r.reel ? `<video src="${r.reel}" controls muted loop playsinline></video>` : '<div></div>'}</div>
-      <div class="meta"><b>Headline:</b> ${esc(r.headline)}\n<b>Text:</b> ${esc(r.primary)}\n<b>Audience:</b> ${esc(r.audience)}\n<b>Link:</b> <code>${esc(r.url)}</code></div>
+      <div class="meta"><b>Headline:</b> ${esc(r.headline)}\n<b>Text:</b> ${esc(r.primary)}\n<b>Audience:</b> ${esc(r.audience)}\n<b>Link:</b> <code>${esc(r.url)}</code>\n\n<b>TikTok ad:</b> ${esc(r.tiktokAd)}\n<b>TikTok caption:</b> ${esc(r.tiktokCaption)}</div>
     </div>`).join('')}</div>`).join('')}
   </body></html>`;
 }

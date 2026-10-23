@@ -80,6 +80,18 @@ test.describe('API guards', () => {
     expect((await request.get('/api/admin/stats')).status()).toBe(401);
     expect((await request.get('/api/admin/stats?key=nope')).status()).toBe(401);
     expect((await request.post('/api/admin/test-report?key=nope')).status()).toBe(401);
+    expect((await request.post('/api/admin/test-email?key=nope', { data: { to: 'a@b.co' } })).status()).toBe(401);
+  });
+  test('admin test email goes to the given address; TikTok pixel only on configured bets', async ({ request }) => {
+    const r = await request.post(`/api/admin/test-email?key=${ADMIN_KEY}`, { data: { to: 'owner@example.com' } });
+    expect(r.status()).toBe(200);
+    const box = await (await request.get('http://localhost:8790/__outbox')).json();
+    expect(box.emails.at(-1).to).toEqual(['owner@example.com']);
+    expect((await (await request.get('/api/bets/peta-rezeki')).json()).tiktokPixelId).toBe('TTPIXELTEST');
+    expect((await (await request.get('/api/bets/siap-nikah')).json()).tiktokPixelId).toBeUndefined();
+    const h = await (await request.get('/api/health')).json();
+    expect(h.settings).toMatchObject({ RESEND_API_KEY: 'set', TIKTOK_EVENTS_TOKEN: 'set', EMAIL_FROM: 'laporan@example.test' });
+    expect(JSON.stringify(h)).not.toContain('re_fake');
   });
   test('cannot complete a quiz with missing answers or order without a finished quiz', async ({ request }) => {
     const s = await (await request.post('/api/sessions', { data: { bet: 'peta-rezeki', variant: '1' } })).json();

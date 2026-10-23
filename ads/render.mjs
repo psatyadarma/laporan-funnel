@@ -4,7 +4,7 @@
 //
 // --app   where to read bet configs and screenshot the real landing pages (default: http://localhost:8788)
 // --link  public site used in ad links (default: LIVE_URL env or the workers.dev URL)
-// Output: ads/out/<bet>/<hook>/{feed.png, story.png, reel.mp4}, ads/out/ads.csv, ads/out/index.html
+// Output: ads/out/<bet>/<hook>/{feed.png, story.png, reel.mp4, copy.txt}, ads/out/ads.csv (Meta), ads/out/tiktok.csv, ads/out/index.html
 import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -27,6 +27,7 @@ const fonts = [500, 700, 800].map((weight) => ({ weight, b64: readFileSync(`${fo
 
 const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {});
 const rows = [];
+const tiktokCsv = [['bet', 'hook', 'ad_name', 'file', 'ad_text', 'organic_caption', 'paid_url', 'organic_url']];
 const csv = [['bet', 'hook', 'ad_name', 'format', 'file', 'headline', 'primary_text', 'description', 'cta_button', 'url', 'objective', 'audience']];
 
 try {
@@ -90,10 +91,15 @@ try {
       // 4. Copy + tracked link
       const url = `${LINK}/${slug}?h=${encodeURIComponent(hookId)}&utm_source=meta&utm_medium=paid&utm_campaign=${slug}-hooktest&utm_content=${encodeURIComponent(hookId)}`;
       const audience = copy.audience ?? campaign.audience;
-      writeFileSync(`${dir}/copy.txt`, `HEADLINE: ${copy.headline}\nDESCRIPTION: ${copy.description}\nCTA BUTTON: ${campaign.ctaButton}\nLINK: ${url}\nAUDIENCE: ${audience}\n\nPRIMARY TEXT:\n${copy.primary}\n`);
+      // TikTok: same Reel (9:16). Paid and organic links are tagged separately so the admin stats can tell them apart.
+      const ttLink = (medium) => `${LINK}/${slug}?h=${encodeURIComponent(hookId)}&utm_source=tiktok&utm_medium=${medium}&utm_campaign=${slug}-hooktest&utm_content=${encodeURIComponent(hookId)}`;
+      const ttCaption = `${copy.tiktok.caption}\n\n${[...campaign.tiktokTags, ...(copy.tiktokTags ?? [])].join(' ')}`;
+      writeFileSync(`${dir}/copy.txt`, `=== META ===\nHEADLINE: ${copy.headline}\nDESCRIPTION: ${copy.description}\nCTA BUTTON: ${campaign.ctaButton}\nLINK: ${url}\nAUDIENCE: ${audience}\n\nPRIMARY TEXT:\n${copy.primary}\n\n`
+        + `=== TIKTOK ===\nAD TEXT: ${copy.tiktok.ad}\nPAID LINK: ${ttLink('paid')}\nORGANIC LINK (bio): ${ttLink('organic')}\n\nORGANIC CAPTION:\n${ttCaption}\n`);
       const rel = `${slug}/${hookId}`;
       const hasReel = existsSync(`${dir}/reel.mp4`);
-      rows.push({ bet: slug, hook: hookId, feed: `${rel}/feed.png`, story: `${rel}/story.png`, reel: hasReel ? `${rel}/reel.mp4` : '', headline: copy.headline, primary: copy.primary, audience, url });
+      rows.push({ bet: slug, hook: hookId, feed: `${rel}/feed.png`, story: `${rel}/story.png`, reel: hasReel ? `${rel}/reel.mp4` : '', headline: copy.headline, primary: copy.primary, audience, url, tiktokAd: copy.tiktok.ad, tiktokCaption: ttCaption });
+      tiktokCsv.push([slug, hookId, `${slug}_${hookId}_tiktok`, hasReel ? `${rel}/reel.mp4` : `${rel}/story.png`, copy.tiktok.ad, ttCaption, ttLink('paid'), ttLink('organic')]);
       for (const [format, file] of [['feed', 'feed.png'], ['story', 'story.png'], ...(hasReel ? [['reel', 'reel.mp4']] : [])]) {
         csv.push([slug, hookId, `${slug}_${hookId}_${format}`, format, `${rel}/${file}`, copy.headline, copy.primary, copy.description, campaign.ctaButton, url + `-${format}`, campaign.objective, audience]);
       }
@@ -106,5 +112,6 @@ try {
 mkdirSync(out, { recursive: true });
 const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
 writeFileSync(`${out}/ads.csv`, csv.map((r) => r.map(q).join(',')).join('\n') + '\n');
+writeFileSync(`${out}/tiktok.csv`, tiktokCsv.map((r) => r.map(q).join(',')).join('\n') + '\n');
 writeFileSync(`${out}/index.html`, indexHtml(rows));
-console.log(`\nDone: ${rows.length} hooks → ${out}/index.html and ads.csv`);
+console.log(`\nDone: ${rows.length} hooks → ${out}/index.html , ads.csv and tiktok.csv`);

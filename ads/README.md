@@ -1,6 +1,6 @@
 # Ad pipeline
 
-Turns each bet's hooks into Meta-ready creatives: a feed image (1080×1350), a story image (1080×1920) and a 9.5-second Reel per hook, plus `ads.csv` with copy and tracked links.
+Turns each bet's hooks into ready-to-post creatives: a feed image (1080×1350), a story image (1080×1920) and a 9.5-second Reel per hook, plus `ads.csv` (Meta copy and links) and `tiktok.csv` (TikTok ad text, organic caption with hashtags, and separate paid/organic links). The Reel is 9:16, so the same file works on TikTok.
 
 **One click (no setup):** GitHub → Actions → **Generate ads** → Run workflow. Download the `ad-creatives` artifact when it finishes (~5 minutes). It screenshots the real landing pages on the live site.
 

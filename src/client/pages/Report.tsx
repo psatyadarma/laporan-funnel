@@ -43,7 +43,7 @@ export function Report() {
         <div className="center">
           <div className="spinner" />
           <h2>Laporanmu sedang disusun</h2>
-          <p className="muted">Biasanya 1–2 menit. Halaman ini akan terbuka otomatis. Simpan link halaman ini untuk membukanya lagi kapan saja.</p>
+          <p className="muted">Biasanya 1–2 menit. Halaman ini akan terbuka otomatis. {bet?.emailDelivery ? 'Link laporan ini juga kami kirim ke emailmu.' : 'Simpan link halaman ini untuk membukanya lagi kapan saja.'}</p>
         </div>
       </div>
     );
@@ -81,7 +81,7 @@ export function Report() {
         <button className="btn" onClick={() => window.print()}>Simpan PDF</button>
         <button className="btn btn-ghost" onClick={shareCard}>Bagikan kartu</button>
       </div>
-      <button className="link-btn no-print" onClick={copyLink}>{copied ? '✓ Link tersalin' : 'Salin link laporan ini (simpan agar bisa dibuka lagi)'}</button>
+      <button className="link-btn no-print" onClick={copyLink}>{copied ? '✓ Link tersalin' : bet.emailDelivery ? 'Salin link laporan ini (juga sudah dikirim ke emailmu)' : 'Salin link laporan ini (simpan agar bisa dibuka lagi)'}</button>
       <p className="lead" style={{ marginTop: 18 }}>{content.intro}</p>
       {content.sections.map((s, si) => (
         <section key={si}>

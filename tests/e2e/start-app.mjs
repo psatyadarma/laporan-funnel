@@ -18,9 +18,11 @@ cfg.main = resolve(root, cfg.main);
 cfg.assets.directory = resolve(root, cfg.assets.directory);
 cfg.d1_databases[0].migrations_dir = resolve(root, 'migrations');
 cfg.triggers = { crons: [] };
-cfg.vars = { ...cfg.vars, PUBLIC_BASE_URL: `http://localhost:${PORT}`, PAYMENT_PROVIDER: 'mock', AI_BASE_URL: `http://localhost:${AI_PORT}`, AI_MODEL: 'fake-model' };
+cfg.vars = { ...cfg.vars, PUBLIC_BASE_URL: `http://localhost:${PORT}`, PAYMENT_PROVIDER: 'mock', AI_BASE_URL: `http://localhost:${AI_PORT}`, AI_MODEL: 'fake-model',
+  EMAIL_API_BASE: `http://localhost:${AI_PORT}`, EMAIL_FROM: 'laporan@example.test',
+  TIKTOK_API_BASE: `http://localhost:${AI_PORT}`, TIKTOK_PIXEL_IDS: '{"peta-rezeki":"TTPIXELTEST"}' };
 writeFileSync(resolve(tmp, 'wrangler.jsonc'), JSON.stringify(cfg, null, 2));
-writeFileSync(resolve(tmp, '.dev.vars'), 'ADMIN_KEY=e2e-admin\nAI_API_KEY=fake-key\n');
+writeFileSync(resolve(tmp, '.dev.vars'), 'ADMIN_KEY=e2e-admin\nAI_API_KEY=fake-key\nRESEND_API_KEY=re_fake\nTIKTOK_EVENTS_TOKEN=tt_fake\n');
 
 const wrangler = resolve(root, 'node_modules/.bin/wrangler');
 if (!process.env.SKIP_BUILD) execSync('npx vite build', { cwd: root, stdio: 'inherit' });

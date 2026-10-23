@@ -21,8 +21,8 @@ export function Order() {
         if (stop) return;
         setO(r);
         if (r.status === 'paid' && r.reportToken) {
-          // Browser Purchase event, deduplicated with the server-side CAPI event by eventID.
-          if (!store(`purchased:${orderId}`)) { pixel('Purchase', { currency: 'IDR', value: r.amount }, r.eventId); store(`purchased:${orderId}`, '1'); }
+          // Browser Purchase event (Meta) / CompletePayment (TikTok), deduplicated with the server-side events by event id.
+          if (!store(`purchased:${orderId}`)) { pixel('Purchase', { currency: 'IDR', value: r.amount, content_name: slug }, r.eventId); store(`purchased:${orderId}`, '1'); }
           store(`report:${slug}`, r.reportToken);
           setTimeout(() => nav(`/r/${r.reportToken}`, { replace: true }), 900);
           return;

@@ -18,13 +18,21 @@ export interface Env {
   /** JSON map of bet slug → Meta Pixel ID, e.g. {"peta-rezeki":"1234567890"} */
   META_PIXEL_IDS?: string;
   META_CAPI_TOKEN?: string;
+  /** JSON map of bet slug → TikTok Pixel ID, e.g. {"peta-rezeki":"CXXXXXXXXXXXXXXX"} */
+  TIKTOK_PIXEL_IDS?: string;
+  /** TikTok Events API access token (Events Manager → pixel → Settings → Generate access token). */
+  TIKTOK_EVENTS_TOKEN?: string;
+  /** Override for tests. Default https://business-api.tiktok.com */
+  TIKTOK_API_BASE?: string;
+  /** Resend API key. Without it, no emails are sent (the report link is still shown on screen). */
+  RESEND_API_KEY?: string;
+  /** Sender address on a domain verified in Resend, e.g. laporan@petarezeki.id. The display name is the bet's brand. */
+  EMAIL_FROM?: string;
+  /** Override for tests. Default https://api.resend.com */
+  EMAIL_API_BASE?: string;
 }
 
-export function pixelIdFor(env: Env, bet: string): string | undefined {
-  if (!env.META_PIXEL_IDS) return undefined;
-  try {
-    return (JSON.parse(env.META_PIXEL_IDS) as Record<string, string>)[bet];
-  } catch {
-    return undefined;
-  }
-}
+import { idFor } from './hash';
+
+export const pixelIdFor = (env: Env, bet: string) => idFor(env.META_PIXEL_IDS, bet);
+export const tiktokPixelIdFor = (env: Env, bet: string) => idFor(env.TIKTOK_PIXEL_IDS, bet);

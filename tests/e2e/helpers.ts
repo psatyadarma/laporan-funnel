@@ -10,35 +10,29 @@ export async function aiCalls(request: APIRequestContext): Promise<number> {
   return (await (await request.get(`${AI}/__calls`)).json()).calls;
 }
 
-/** Clicks through the quiz like a buyer (first option each time; fills date/text steps). */
+/**
+ * Clicks through the quiz like a buyer, one step at a time, following the "n / total" counter
+ * (first option for choices; fills date/text steps), then waits for the results page.
+ */
 export async function completeQuiz(page: Page, { birthdate = '1995-03-10', name = 'Dimas' } = {}) {
   await page.getByRole('button', { name: /mulai tes|cek tipeku/i }).click();
-  await expect(page.locator('.q-prompt')).toBeVisible();
-  for (let i = 0; i < 40; i++) {
-    if (await page.locator('.result-hero').isVisible()) return;
-    if (await page.locator('.spinner').isVisible()) { await page.waitForTimeout(500); continue; }
-    const counter = await page.locator('.topbar .small').textContent().catch(() => null);
+  const counter = page.locator('.topbar .small');
+  await expect(counter).toHaveText(/^1 \/ \d+$/);
+  const total = Number((await counter.textContent())!.split('/')[1].trim());
+  for (let step = 1; step <= total; step++) {
+    await expect(counter).toHaveText(`${step} / ${total}`);
+    const prompt = page.locator('.q-prompt');
+    await expect(prompt).toBeVisible();
     const option = page.locator('button.option').first();
-    if (await option.isVisible().catch(() => false)) {
+    if ((await page.locator('button.option').count()) > 0) {
       await option.click();
-      // wait for the next step (counter changes) or the analyzing screen
-      await expect(async () => {
-        const now = await page.locator('.topbar .small').textContent({ timeout: 1000 }).catch(() => null);
-        const busy = await page.locator('.spinner').isVisible();
-        const done = await page.locator('.result-hero').isVisible();
-        expect(busy || done || now !== counter).toBeTruthy();
-      }).toPass({ timeout: 15_000 });
-      continue;
-    }
-    const field = page.locator('form input.field');
-    if (await field.isVisible().catch(() => false)) {
+    } else {
+      const field = page.locator('form input.field');
       await field.fill((await field.getAttribute('type')) === 'date' ? birthdate : name);
-      await page.locator('form button.btn').click();
-      continue;
+      await page.locator('form button.btn').first().click();
     }
-    await page.waitForTimeout(300);
   }
-  await expect(page.locator('.result-hero')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.result-hero')).toBeVisible({ timeout: 30_000 });
 }
 
 /** Fills checkout, pays on the mock payment page, and lands on the report page. */
